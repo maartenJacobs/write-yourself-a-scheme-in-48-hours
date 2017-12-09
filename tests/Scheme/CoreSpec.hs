@@ -25,3 +25,6 @@ spec =
             readExpr "#h5AB10" `shouldBe` "Found value: Number 371472"
             readExpr "#o56" `shouldBe` "Found value: Number 46"
             readExpr "#d123" `shouldBe` "Found value: Number 123"
+        it "parses character literals" $ do
+            readExpr "#\\a" `shouldBe` "Found value: Character 'a'"
+            readExpr "#\\ " `shouldBe` "Found value: Character ' '"
