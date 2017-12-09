@@ -21,7 +21,7 @@ spec =
             readExpr "1234" `shouldBe` "Found value: Number 1234"
             readExpr "0123" `shouldBe` "Found value: Number 123"
         it "parses integers with different bases" $ do
-            -- readExpr "#b1100" `shouldBe` "Found value: Number 12"
+            readExpr "#b1101" `shouldBe` "Found value: Number 13"
             readExpr "#h5AB10" `shouldBe` "Found value: Number 371472"
             readExpr "#o56" `shouldBe` "Found value: Number 46"
             readExpr "#d123" `shouldBe` "Found value: Number 123"

@@ -2,7 +2,7 @@ module Scheme.Core where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
-import Numeric (readOct, readHex)
+import Numeric (readHex)
 
 data LispVal = Atom String
              | List [LispVal]
@@ -45,13 +45,16 @@ parseAtom = do
                 "#f" -> Bool False
                 _    -> Atom atom
 
+readBase :: Integer -> String -> Integer
+readBase base = foldl (\acc c -> acc * base + read [c]) 0
+
 parseNumberWithBase :: Parser LispVal
 parseNumberWithBase = do
     char '#'
     base <- oneOf "bodh"
     num <- case base of
-        'b' -> undefined
-        'o' -> many1 (oneOf ['0'..'7']) >>= return . fst . head . readOct
+        'b' -> many1 (oneOf "01") >>= return . readBase 2
+        'o' -> many1 (oneOf ['0'..'7']) >>= return . readBase 8
         'd' -> parseDecimal
         'h' -> many1 (oneOf (['0'..'9'] ++ ['A'..'F'])) >>= return . fst . head . readHex
     return $ Number num
@@ -65,7 +68,7 @@ parseNumber = try parseNumberWithBase <|> (parseDecimal >>= return . Number)
 parseExpr :: Parser LispVal
 parseExpr = parseNumber
          <|> parseAtom
-         <|> parseString 
+         <|> parseString
 
 readExpr :: String -> String
 readExpr input = case parse parseExpr "lisp" input of
