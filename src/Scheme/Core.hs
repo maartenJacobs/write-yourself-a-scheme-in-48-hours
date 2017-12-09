@@ -62,13 +62,6 @@ parseDecimal = many1 digit >>= return . read
 parseNumber :: Parser LispVal
 parseNumber = try parseNumberWithBase <|> (parseDecimal >>= return . Number)
 
--- parseNumber implemented using do notation
--- parseNumber = do ds <- many1 digit
---                 return . Number $ read ds
-
--- parseNumber implemented using `liftM`
--- parseNumber = liftM (Number . read) $ many1 digit
-
 parseExpr :: Parser LispVal
 parseExpr = parseNumber
          <|> parseAtom
