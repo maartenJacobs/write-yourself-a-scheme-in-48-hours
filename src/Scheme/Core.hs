@@ -2,7 +2,7 @@ module Scheme.Core where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
-import Numeric (readHex)
+import Numeric (readHex, readFloat)
 
 data LispVal = Atom String
              | List [LispVal]
@@ -11,6 +11,7 @@ data LispVal = Atom String
              | String String
              | Bool Bool
              | Character Char
+             | Float Float
              deriving (Show)
 
 symbol :: Parser Char
@@ -66,6 +67,18 @@ parseDecimal = many1 digit >>= return . read
 parseNumber :: Parser LispVal
 parseNumber = try parseNumberWithBase <|> (parseDecimal >>= return . Number)
 
+parseFloat :: Parser LispVal
+parseFloat = withInitial <|> withoutInitial
+    where withInitial = do
+            is <- many1 digit
+            char '.'
+            ds <- many digit
+            readFloat' is ds
+          withoutInitial = char '.' >> many1 digit >>= readFloat' []
+          readFloat' [] ds = readFloat' "0" ds
+          readFloat' is [] = readFloat' is "0"
+          readFloat' is ds = return . Float . fst . head $ readFloat (is ++ "." ++ ds)
+
 parseCharacter :: Parser LispVal
 parseCharacter = string "#\\" >> (characterName <|> character)
     where character = anyChar >>= return . Character
@@ -73,7 +86,8 @@ parseCharacter = string "#\\" >> (characterName <|> character)
                         <|> (string "newline" >> return (Character '\n'))
 
 parseExpr :: Parser LispVal
-parseExpr = parseNumber
+parseExpr = try parseFloat
+         <|> parseNumber
          <|> try parseCharacter
          <|> parseAtom
          <|> parseString

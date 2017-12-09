@@ -25,6 +25,10 @@ spec =
             readExpr "#h5AB10" `shouldBe` "Found value: Number 371472"
             readExpr "#o56" `shouldBe` "Found value: Number 46"
             readExpr "#d123" `shouldBe` "Found value: Number 123"
+        it "parses floats" $ do
+            readExpr "12.34" `shouldBe` "Found value: Float 12.34"
+            readExpr "0.23" `shouldBe` "Found value: Float 0.23"
+            readExpr "23." `shouldBe` "Found value: Float 23.0"
         it "parses character literals" $ do
             readExpr "#\\a" `shouldBe` "Found value: Character 'a'"
             readExpr "#\\ " `shouldBe` "Found value: Character ' '"
