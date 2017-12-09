@@ -67,7 +67,10 @@ parseNumber :: Parser LispVal
 parseNumber = try parseNumberWithBase <|> (parseDecimal >>= return . Number)
 
 parseCharacter :: Parser LispVal
-parseCharacter = string "#\\" >> anyChar >>= return . Character
+parseCharacter = string "#\\" >> (characterName <|> character)
+    where character = anyChar >>= return . Character
+          characterName = (string "space" >> return (Character ' '))
+                        <|> (string "newline" >> return (Character '\n'))
 
 parseExpr :: Parser LispVal
 parseExpr = parseNumber

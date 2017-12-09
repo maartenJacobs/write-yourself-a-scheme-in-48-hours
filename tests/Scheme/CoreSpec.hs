@@ -28,3 +28,5 @@ spec =
         it "parses character literals" $ do
             readExpr "#\\a" `shouldBe` "Found value: Character 'a'"
             readExpr "#\\ " `shouldBe` "Found value: Character ' '"
+            readExpr "#\\space" `shouldBe` "Found value: Character ' '"
+            readExpr "#\\newline" `shouldBe` "Found value: Character '\\n'"
