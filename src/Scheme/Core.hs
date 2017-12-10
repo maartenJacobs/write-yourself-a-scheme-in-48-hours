@@ -47,37 +47,59 @@ parseAtom = do
                 "#f" -> Bool False
                 _    -> Atom atom
 
+-- | 'readBase' takes a base of 1 to 10 to convert a string of digits, specific
+-- to the base, to an integer. The implementation is currently lazy.
+-- For instance, base 8 and "56" is converted to 46. Base 2 and "1101" is converted
+-- to 13.
 readBase :: Integer -> String -> Integer
-readBase base = foldl (\acc c -> acc * base + read [c]) 0
+readBase base | base >= 1 && base <= 10 =
+    foldl (\acc c -> acc * base + read [c]) 0
 
 parseNumberWithBase :: Parser LispVal
 parseNumberWithBase = do
     char '#'
     base <- oneOf "bodh"
+    sign <- parseSign
     num <- case base of
-        'b' -> many1 (oneOf "01") >>= return . readBase 2
-        'o' -> many1 (oneOf ['0'..'7']) >>= return . readBase 8
-        'd' -> parseDecimal
-        'h' -> many1 (oneOf (['0'..'9'] ++ ['A'..'F'])) >>= return . fst . head . readHex
+        'b' -> many1 (oneOf "01") >>= return . applySign sign . readBase 2
+        'o' -> many1 (oneOf ['0'..'7']) >>= return . applySign sign . readBase 8
+        'd' -> parseDecimal >>= return . applySign sign
+        'h' -> many1 (oneOf (['0'..'9'] ++ ['A'..'F'])) >>= return . applySign sign . fst . head . readHex
     return $ Number num
 
 parseDecimal :: Parser Integer
 parseDecimal = many1 digit >>= return . read
 
 parseNumber :: Parser LispVal
-parseNumber = try parseNumberWithBase <|> (parseDecimal >>= return . Number)
+parseNumber = try parseNumberWithBase <|>
+    (do sign <- parseSign
+        ds <- parseDecimal
+        return . Number $ applySign sign ds)
 
 parseFloat :: Parser LispVal
-parseFloat = withInitial <|> withoutInitial
-    where withInitial = do
-            is <- many1 digit
-            char '.'
-            ds <- many digit
-            readFloat' is ds
-          withoutInitial = char '.' >> many1 digit >>= readFloat' []
-          readFloat' [] ds = readFloat' "0" ds
-          readFloat' is [] = readFloat' is "0"
-          readFloat' is ds = return . Float . fst . head $ readFloat (is ++ "." ++ ds)
+parseFloat = do
+        sign <- parseSign
+        is <- many digit
+        char '.'
+        let restParse = if null is then many1 else many
+        ds <- restParse digit
+        return $ readFloat' is ds (applySign sign)
+
+applySign :: Num a => Char -> a -> a
+applySign '+' = id
+applySign '-' = negate
+
+parseSign :: Parser Char
+parseSign = try (oneOf "+-") <|> return '+'
+
+-- | The readFloat' function takes the digits before the decimal point and the digits
+-- after the decimal points, and uses 'Numeric.readFloat' to convert these parts into
+-- a 'Float'. The 'sign' is then added to the result and wrapped in the relevant
+-- 'LispVal' constructor.
+readFloat' :: String -> String -> (Float -> Float) -> LispVal
+readFloat' [] ds sign = readFloat' "0" ds sign
+readFloat' is [] sign = readFloat' is "0" sign
+readFloat' is ds sign = Float . sign . fst . head $ readFloat (is ++ "." ++ ds)
 
 parseCharacter :: Parser LispVal
 parseCharacter = string "#\\" >> (characterName <|> character)

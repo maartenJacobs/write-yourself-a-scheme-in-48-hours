@@ -19,14 +19,26 @@ spec =
             readExpr "#f" `shouldBe` "Found value: Bool False"
         it "parses integers" $ do
             readExpr "1234" `shouldBe` "Found value: Number 1234"
-            readExpr "0123" `shouldBe` "Found value: Number 123"
+            readExpr "123" `shouldBe` "Found value: Number 123"
+            readExpr "+123" `shouldBe` "Found value: Number 123"
+            readExpr "-123" `shouldBe` "Found value: Number (-123)"
         it "parses integers with different bases" $ do
             readExpr "#b1101" `shouldBe` "Found value: Number 13"
+            readExpr "#b+1101" `shouldBe` "Found value: Number 13"
+            readExpr "#b-1101" `shouldBe` "Found value: Number (-13)"
             readExpr "#h5AB10" `shouldBe` "Found value: Number 371472"
+            readExpr "#h+5AB10" `shouldBe` "Found value: Number 371472"
+            readExpr "#h-5AB10" `shouldBe` "Found value: Number (-371472)"
             readExpr "#o56" `shouldBe` "Found value: Number 46"
+            readExpr "#o+56" `shouldBe` "Found value: Number 46"
+            readExpr "#o-56" `shouldBe` "Found value: Number (-46)"
             readExpr "#d123" `shouldBe` "Found value: Number 123"
+            readExpr "#d+123" `shouldBe` "Found value: Number 123"
+            readExpr "#d-123" `shouldBe` "Found value: Number (-123)"
         it "parses floats" $ do
             readExpr "12.34" `shouldBe` "Found value: Float 12.34"
+            readExpr "+12.34" `shouldBe` "Found value: Float 12.34"
+            readExpr "-12.34" `shouldBe` "Found value: Float (-12.34)"
             readExpr "0.23" `shouldBe` "Found value: Float 0.23"
             readExpr "23." `shouldBe` "Found value: Float 23.0"
         it "parses character literals" $ do
