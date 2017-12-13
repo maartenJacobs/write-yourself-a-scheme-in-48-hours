@@ -1,48 +1,92 @@
 module Scheme.CoreSpec (spec) where
-    
+
 import Test.Hspec
-import Scheme.Core
+import Scheme.Core (
+      parseExpr
+    , LispVal(..)
+    , SimpleNumber(..)
+    , ComplexNumber(..)
+    , Exactness(..)
+    )
+import Text.ParserCombinators.Parsec (parse)
+
+exactnessOptions :: [(String, Exactness)]
+exactnessOptions = [("", Inexact), ("#i", Inexact), ("#e", Exact)]
+
+testParse :: String -> LispVal -> Expectation
+testParse input expected =
+    parse parseExpr "(test input)" input `shouldBe` Right expected
+
+assertExactness :: String -> SimpleNumber -> Expectation
+assertExactness numInput expected = sequence_ [
+        testParse (e ++ numInput) (SimpleLispNum expected repr)
+        | (e, repr) <- exactnessOptions
+    ]
+
+assertExactnessWithBase :: Char -> String -> SimpleNumber -> Expectation
+assertExactnessWithBase base numInput expected = sequence_ [
+        testParse (pre ++ numInput) (SimpleLispNum expected repr)
+        | (e, repr) <- exactnessOptions,
+          beforeBase <- [True, False],
+          let pre = if beforeBase then e ++ ['#', base] else ['#', base] ++ e
+    ]
 
 spec :: Spec
 spec =
     describe "scheme parser" $ do
         it "parses strings" $ do
-            readExpr "\"string\"" `shouldBe` "Found value: String \"string\""
+            testParse "\"string\"" (String "string")
         it "parses escaped characters" $ do
-            readExpr "\"\\\"string\\\"\"" `shouldBe` "Found value: String \"\\\"string\\\"\""
-            readExpr "\"\\n\"" `shouldBe` "Found value: String \"\\n\""
-            readExpr "\"\\t\"" `shouldBe` "Found value: String \"\\t\""
-            readExpr "\"\\r\"" `shouldBe` "Found value: String \"\\r\""
-            readExpr "\"\\\\\"" `shouldBe` "Found value: String \"\\\\\""
+            testParse "\"\\\"string\\\"\"" (String "\\\"string\\\"")
+            testParse "\"\\n\"" (String "\n")
+            testParse "\"\\t\"" (String "\t")
+            testParse "\"\\r\"" (String "\r")
+            testParse "\"\\\\\"" (String "\\")
         it "parses bools" $ do
-            readExpr "#t" `shouldBe` "Found value: Bool True"
-            readExpr "#f" `shouldBe` "Found value: Bool False"
+            testParse "#t" (Bool True)
+            testParse "#f" (Bool False)
         it "parses integers" $ do
-            readExpr "1234" `shouldBe` "Found value: Number 1234"
-            readExpr "123" `shouldBe` "Found value: Number 123"
-            readExpr "+123" `shouldBe` "Found value: Number 123"
-            readExpr "-123" `shouldBe` "Found value: Number (-123)"
+            testParse "1234" (SimpleLispNum (Integer 1234) Inexact)
+            testParse "+1234" (SimpleLispNum (Integer 1234) Inexact)
+            testParse "-1234" (SimpleLispNum (Integer (-1234)) Inexact)
+        it "parses integers with exactness" $ do
+            assertExactness "1234" (Integer 1234)
+            assertExactness "+1234" (Integer 1234)
+            assertExactness "-1234" (Integer (-1234))
         it "parses integers with different bases" $ do
-            readExpr "#b1101" `shouldBe` "Found value: Number 13"
-            readExpr "#b+1101" `shouldBe` "Found value: Number 13"
-            readExpr "#b-1101" `shouldBe` "Found value: Number (-13)"
-            readExpr "#h5AB10" `shouldBe` "Found value: Number 371472"
-            readExpr "#h+5AB10" `shouldBe` "Found value: Number 371472"
-            readExpr "#h-5AB10" `shouldBe` "Found value: Number (-371472)"
-            readExpr "#o56" `shouldBe` "Found value: Number 46"
-            readExpr "#o+56" `shouldBe` "Found value: Number 46"
-            readExpr "#o-56" `shouldBe` "Found value: Number (-46)"
-            readExpr "#d123" `shouldBe` "Found value: Number 123"
-            readExpr "#d+123" `shouldBe` "Found value: Number 123"
-            readExpr "#d-123" `shouldBe` "Found value: Number (-123)"
+            testParse "#b1101" (SimpleLispNum (Integer 13) Inexact)
+            testParse "#b+1101" (SimpleLispNum (Integer 13) Inexact)
+            testParse "#b-1101" (SimpleLispNum (Integer (-13)) Inexact)
+            testParse "#h5AB10" (SimpleLispNum (Integer 371472) Inexact)
+            testParse "#h+5AB10" (SimpleLispNum (Integer 371472) Inexact)
+            testParse "#h-5AB10" (SimpleLispNum (Integer (-371472)) Inexact)
+            testParse "#o56" (SimpleLispNum (Integer 46) Inexact)
+            testParse "#o+56" (SimpleLispNum (Integer 46) Inexact)
+            testParse "#o-56" (SimpleLispNum (Integer (-46)) Inexact)
+            testParse "#d123" (SimpleLispNum (Integer 123) Inexact)
+            testParse "#d+123" (SimpleLispNum (Integer 123) Inexact)
+            testParse "#d-123" (SimpleLispNum (Integer (-123)) Inexact)
+        it "parses integers with different bases and exactness" $ do
+            assertExactnessWithBase 'b' "1101" (Integer 13)
+            assertExactnessWithBase 'b' "1101" (Integer 13)
+            assertExactnessWithBase 'b' "-1101" (Integer (-13))
+            assertExactnessWithBase 'h' "5AB10" (Integer 371472)
+            assertExactnessWithBase 'h' "+5AB10" (Integer 371472)
+            assertExactnessWithBase 'h' "-5AB10" (Integer (-371472))
+            assertExactnessWithBase 'o' "56" (Integer 46)
+            assertExactnessWithBase 'o' "56" (Integer 46)
+            assertExactnessWithBase 'o' "-56" (Integer (-46))
+            assertExactnessWithBase 'd' "123" (Integer 123)
+            assertExactnessWithBase 'd' "123" (Integer 123)
+            assertExactnessWithBase 'd' "-123" (Integer (-123))
         it "parses floats" $ do
-            readExpr "12.34" `shouldBe` "Found value: Float 12.34"
-            readExpr "+12.34" `shouldBe` "Found value: Float 12.34"
-            readExpr "-12.34" `shouldBe` "Found value: Float (-12.34)"
-            readExpr "0.23" `shouldBe` "Found value: Float 0.23"
-            readExpr "23." `shouldBe` "Found value: Float 23.0"
+            testParse "12.34" (SimpleLispNum (Float 12.34) Inexact)
+            testParse "+12.34" (SimpleLispNum (Float 12.34) Inexact)
+            testParse "-12.34" (SimpleLispNum (Float (-12.34)) Inexact)
+            testParse "0.23" (SimpleLispNum (Float 0.23) Inexact)
+            testParse "23." (SimpleLispNum (Float 23.0) Inexact)
         it "parses character literals" $ do
-            readExpr "#\\a" `shouldBe` "Found value: Character 'a'"
-            readExpr "#\\ " `shouldBe` "Found value: Character ' '"
-            readExpr "#\\space" `shouldBe` "Found value: Character ' '"
-            readExpr "#\\newline" `shouldBe` "Found value: Character '\\n'"
+            testParse "#\\a" (Character 'a')
+            testParse "#\\ " (Character ' ')
+            testParse "#\\space" (Character ' ')
+            testParse "#\\newline" (Character '\n')

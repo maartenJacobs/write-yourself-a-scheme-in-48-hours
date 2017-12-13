@@ -2,7 +2,6 @@ name:                scheme
 version:             0.1.0.0
 synopsis:            scheme in 48 hours
 license:             BSD3
-license-file:        LICENSE
 author:              nervouscloud
 maintainer:          maarten.j.jacobs@gmail.com
 build-type:          Simple
@@ -28,6 +27,8 @@ Test-Suite scheme-spec
                   , Cabal >= 1.10
                   , scheme-core
                   , hspec == 2.4.4
+                  , parsec == 3.1.11
   default-language: Haskell2010
   ghc-options:      -Wall
   hs-source-dirs:   tests
+  other-modules:    Scheme.CoreSpec

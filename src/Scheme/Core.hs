@@ -4,15 +4,29 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
 import Numeric (readHex, readFloat)
 
+-- | 'SimpleNumber' describes scalar numbers.
+data SimpleNumber = Integer Integer
+                  | Float Float
+                  | Rational Integer Integer
+                  deriving (Show, Eq)
+
+-- | 'ComplexNumber' describes a complex number, consisting of a
+-- real part and an imaginary part.
+data ComplexNumber = Complex SimpleNumber SimpleNumber
+                   deriving (Show, Eq)
+
+data Exactness = Exact | Inexact
+               deriving (Show, Eq)
+
 data LispVal = Atom String
              | List [LispVal]
              | DottedList [LispVal] LispVal
-             | Number Integer
+             | ComplexLispNum ComplexNumber Exactness
+             | SimpleLispNum SimpleNumber Exactness
              | String String
              | Bool Bool
              | Character Char
-             | Float Float
-             deriving (Show)
+             deriving (Show, Eq)
 
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
@@ -65,7 +79,8 @@ parseNumberWithBase = do
         'o' -> many1 (oneOf ['0'..'7']) >>= return . applySign sign . readBase 8
         'd' -> parseDecimal >>= return . applySign sign
         'h' -> many1 (oneOf (['0'..'9'] ++ ['A'..'F'])) >>= return . applySign sign . fst . head . readHex
-    return $ Number num
+    let lispVal = SimpleLispNum (Integer num) Inexact
+    return lispVal
 
 parseDecimal :: Parser Integer
 parseDecimal = many1 digit >>= return . read
@@ -74,7 +89,8 @@ parseNumber :: Parser LispVal
 parseNumber = try parseNumberWithBase <|>
     (do sign <- parseSign
         ds <- parseDecimal
-        return . Number $ applySign sign ds)
+        let lispVal = SimpleLispNum (Integer (applySign sign ds)) Inexact
+        return lispVal)
 
 parseFloat :: Parser LispVal
 parseFloat = do
@@ -83,7 +99,8 @@ parseFloat = do
         char '.'
         let restParse = if null is then many1 else many
         ds <- restParse digit
-        return $ readFloat' is ds (applySign sign)
+        let float = readFloat' is ds $ applySign sign
+        return $ SimpleLispNum float Inexact
 
 applySign :: Num a => Char -> a -> a
 applySign '+' = id
@@ -96,7 +113,7 @@ parseSign = try (oneOf "+-") <|> return '+'
 -- after the decimal points, and uses 'Numeric.readFloat' to convert these parts into
 -- a 'Float'. The 'sign' is then added to the result and wrapped in the relevant
 -- 'LispVal' constructor.
-readFloat' :: String -> String -> (Float -> Float) -> LispVal
+readFloat' :: String -> String -> (Float -> Float) -> SimpleNumber
 readFloat' [] ds sign = readFloat' "0" ds sign
 readFloat' is [] sign = readFloat' is "0" sign
 readFloat' is ds sign = Float . sign . fst . head $ readFloat (is ++ "." ++ ds)
