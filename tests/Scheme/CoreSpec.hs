@@ -37,7 +37,7 @@ spec =
         it "parses strings" $ do
             testParse "\"string\"" (String "string")
         it "parses escaped characters" $ do
-            testParse "\"\\\"string\\\"\"" (String "\\\"string\\\"")
+            testParse "\"\\\"string\\\"\"" (String "\"string\"")
             testParse "\"\\n\"" (String "\n")
             testParse "\"\\t\"" (String "\t")
             testParse "\"\\r\"" (String "\r")

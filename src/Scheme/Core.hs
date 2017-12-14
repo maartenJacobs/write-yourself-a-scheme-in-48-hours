@@ -71,40 +71,73 @@ readBase base | base >= 1 && base <= 10 =
 
 parseNumberWithBase :: Parser LispVal
 parseNumberWithBase = do
-    char '#'
-    base <- oneOf "bodh"
+    firstModifier <- char '#' >> oneOf "bodhie"
+    secondModifier <- (Just <$> parseOtherModifier firstModifier) <|> return Nothing
+    let (base, exactness) = determineBaseAndExactness firstModifier secondModifier
     sign <- parseSign
     num <- case base of
-        'b' -> many1 (oneOf "01") >>= return . applySign sign . readBase 2
-        'o' -> many1 (oneOf ['0'..'7']) >>= return . applySign sign . readBase 8
-        'd' -> parseDecimal >>= return . applySign sign
-        'h' -> many1 (oneOf (['0'..'9'] ++ ['A'..'F'])) >>= return . applySign sign . fst . head . readHex
-    let lispVal = SimpleLispNum (Integer num) Inexact
+        'b' -> many1 (oneOf "01") >>= return .  readBase 2
+        'o' -> many1 (oneOf ['0'..'7']) >>= return . readBase 8
+        'd' -> parseDecimal
+        'h' -> many1 (oneOf (['0'..'9'] ++ ['A'..'F'])) >>= return . fst . head . readHex
+        _   -> fail "Unexpected base"
+    let lispNum = applySign sign (Integer num) 
+    let lispVal = SimpleLispNum lispNum exactness
     return lispVal
+    where parseOtherModifier :: Char -> Parser Char
+          parseOtherModifier firstModifier = 
+            if firstModifier `elem` "bodh"
+                then (char '#' >> oneOf "ie")
+                else (char '#' >> oneOf "bodh")
+          determineBaseAndExactness :: Char -> Maybe Char -> (Char, Exactness)  
+          determineBaseAndExactness firstModifier Nothing = (firstModifier, Inexact)
+          determineBaseAndExactness firstModifier (Just secondModifier) =
+            if firstModifier `elem` "bodh"
+                then (firstModifier, exactnessFromModifier secondModifier)
+                else (secondModifier, exactnessFromModifier firstModifier)
 
 parseDecimal :: Parser Integer
 parseDecimal = many1 digit >>= return . read
 
 parseNumber :: Parser LispVal
 parseNumber = try parseNumberWithBase <|>
-    (do sign <- parseSign
+    (do exactness <- parseExactness
+        sign <- parseSign
         ds <- parseDecimal
-        let lispVal = SimpleLispNum (Integer (applySign sign ds)) Inexact
+        let lispVal = SimpleLispNum (applySign sign (Integer ds)) exactness
         return lispVal)
 
-parseFloat :: Parser LispVal
-parseFloat = do
-        sign <- parseSign
-        is <- many digit
-        char '.'
-        let restParse = if null is then many1 else many
-        ds <- restParse digit
-        let float = readFloat' is ds $ applySign sign
-        return $ SimpleLispNum float Inexact
+parseLispFloat :: Parser LispVal
+parseLispFloat = do
+    exactness <- parseExactness
+    sign <- parseSign
+    float <- parseFloat
+    return $ SimpleLispNum (applySign sign float) exactness
 
-applySign :: Num a => Char -> a -> a
-applySign '+' = id
-applySign '-' = negate
+parseFloat :: Parser SimpleNumber
+parseFloat = do
+    is <- many digit
+    char '.'
+    let restParse = if null is then many1 else many
+    ds <- restParse digit
+    return $ readFloat' is ds id
+
+applySign :: Char -> SimpleNumber -> SimpleNumber
+applySign sign n =
+    case n of
+        Integer i    -> Integer (signOp sign i)
+        Float f      -> Float (signOp sign f)
+        Rational n d -> Rational (signOp sign n) d
+    where signOp :: Num a => Char -> a -> a
+          signOp '+' n = id n
+          signOp '-' n = negate n
+
+exactnessFromModifier :: Char -> Exactness
+exactnessFromModifier 'i' = Inexact
+exactnessFromModifier 'e' = Exact
+
+parseExactness :: Parser Exactness
+parseExactness = ((char '#' >> oneOf "ie") <|> return 'i') >>= return . exactnessFromModifier
 
 parseSign :: Parser Char
 parseSign = try (oneOf "+-") <|> return '+'
@@ -125,8 +158,8 @@ parseCharacter = string "#\\" >> (characterName <|> character)
                         <|> (string "newline" >> return (Character '\n'))
 
 parseExpr :: Parser LispVal
-parseExpr = try parseFloat
-         <|> parseNumber
+parseExpr = try parseLispFloat
+         <|> try parseNumber
          <|> try parseCharacter
          <|> parseAtom
          <|> parseString
