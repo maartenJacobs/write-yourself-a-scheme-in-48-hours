@@ -81,15 +81,16 @@ parseNumberWithBase = do
         'd' -> parseDecimal
         'h' -> (fst . head . readHex) <$> many1 (oneOf (['0'..'9'] ++ ['a'..'f']))
         _   -> fail "Unexpected base"
-    let lispNum = applySign sign (Integer num) 
+    let lispNum = applySign sign (Integer num)
     let lispVal = SimpleLispNum lispNum exactness
     return lispVal
     where parseOtherModifier :: Char -> Parser Char
-          parseOtherModifier firstModifier = 
+          parseOtherModifier firstModifier =
+            char '#' >>
             if firstModifier `elem` "bodh"
-                then char '#' >> oneOf "ie"
-                else char '#' >> oneOf "bodh"
-          determineBaseAndExactness :: Char -> Maybe Char -> (Char, Exactness)  
+                then oneOf "ie"
+                else oneOf "bodh"
+          determineBaseAndExactness :: Char -> Maybe Char -> (Char, Exactness)
           determineBaseAndExactness firstModifier Nothing = (firstModifier, Inexact)
           determineBaseAndExactness firstModifier (Just secondModifier) =
             if firstModifier `elem` "bodh"
