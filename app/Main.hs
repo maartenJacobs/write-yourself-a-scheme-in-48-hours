@@ -1,5 +1,5 @@
 import System.Environment
-import Scheme.Core
+import Scheme.Parser
 
 main :: IO ()
 main = do 

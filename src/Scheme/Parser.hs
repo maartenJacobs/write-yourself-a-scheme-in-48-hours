@@ -1,4 +1,4 @@
-module Scheme.Core where
+module Scheme.Parser where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
@@ -45,7 +45,7 @@ parseStringChar :: Parser Char
 parseStringChar = parseEscapeChars <|> noneOf "\""
 
 parseEscapeChars :: Parser Char
-parseEscapeChars = char '\\' >> oneOf "ntr\\\"" >>= return . unescape
+parseEscapeChars = unescape <$> (char '\\' >> oneOf "ntr\\\"")
     where unescape 'n' = '\n'
           unescape 'r' = '\r'
           unescape 't' = '\t'
@@ -76,10 +76,10 @@ parseNumberWithBase = do
     let (base, exactness) = determineBaseAndExactness firstModifier secondModifier
     sign <- parseSign
     num <- case base of
-        'b' -> many1 (oneOf "01") >>= return .  readBase 2
-        'o' -> many1 (oneOf ['0'..'7']) >>= return . readBase 8
+        'b' -> readBase 2 <$> many1 (oneOf "01")
+        'o' -> readBase 8 <$> many1 (oneOf ['0'..'7'])
         'd' -> parseDecimal
-        'h' -> many1 (oneOf (['0'..'9'] ++ ['A'..'F'])) >>= return . fst . head . readHex
+        'h' -> (fst . head . readHex) <$> many1 (oneOf (['0'..'9'] ++ ['a'..'f']))
         _   -> fail "Unexpected base"
     let lispNum = applySign sign (Integer num) 
     let lispVal = SimpleLispNum lispNum exactness
@@ -87,8 +87,8 @@ parseNumberWithBase = do
     where parseOtherModifier :: Char -> Parser Char
           parseOtherModifier firstModifier = 
             if firstModifier `elem` "bodh"
-                then (char '#' >> oneOf "ie")
-                else (char '#' >> oneOf "bodh")
+                then char '#' >> oneOf "ie"
+                else char '#' >> oneOf "bodh"
           determineBaseAndExactness :: Char -> Maybe Char -> (Char, Exactness)  
           determineBaseAndExactness firstModifier Nothing = (firstModifier, Inexact)
           determineBaseAndExactness firstModifier (Just secondModifier) =
@@ -97,7 +97,7 @@ parseNumberWithBase = do
                 else (secondModifier, exactnessFromModifier firstModifier)
 
 parseDecimal :: Parser Integer
-parseDecimal = many1 digit >>= return . read
+parseDecimal = read <$> many1 digit
 
 parseNumber :: Parser LispVal
 parseNumber = try parseNumberWithBase <|>
@@ -129,15 +129,15 @@ applySign sign n =
         Float f      -> Float (signOp sign f)
         Rational n d -> Rational (signOp sign n) d
     where signOp :: Num a => Char -> a -> a
-          signOp '+' n = id n
-          signOp '-' n = negate n
+          signOp '+' = id
+          signOp '-' = negate
 
 exactnessFromModifier :: Char -> Exactness
 exactnessFromModifier 'i' = Inexact
 exactnessFromModifier 'e' = Exact
 
 parseExactness :: Parser Exactness
-parseExactness = ((char '#' >> oneOf "ie") <|> return 'i') >>= return . exactnessFromModifier
+parseExactness = exactnessFromModifier <$> ((char '#' >> oneOf "ie") <|> return 'i')
 
 parseSign :: Parser Char
 parseSign = try (oneOf "+-") <|> return '+'
@@ -153,7 +153,7 @@ readFloat' is ds sign = Float . sign . fst . head $ readFloat (is ++ "." ++ ds)
 
 parseCharacter :: Parser LispVal
 parseCharacter = string "#\\" >> (characterName <|> character)
-    where character = anyChar >>= return . Character
+    where character = Character <$> anyChar
           characterName = (string "space" >> return (Character ' '))
                         <|> (string "newline" >> return (Character '\n'))
 
