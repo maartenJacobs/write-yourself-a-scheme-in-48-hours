@@ -220,3 +220,19 @@ spec =
                 testParse "#\\ " (Character ' ')
                 testParse "#\\space" (Character ' ')
                 testParse "#\\newline" (Character '\n')
+        context "when parsing lists" $ do
+            it "parses empty lists" $ do
+                testParse "()" (List [])
+            it "parses non-empty lists" $ do
+                testParse "(#e1 #\\a \"foo\")"
+                    (List [ LispNumber (Complex (Integer 1) (Integer 0)) Exact
+                          , Character 'a'
+                          , String "foo"])
+        context "when parsing dotted lists" $ do
+            it "parses dotted pairs" $ do
+                testParse "(#\\a . 1)" (DottedList [Character 'a'] (LispNumber (Complex (Integer 1) (Integer 0)) Inexact))
+        context "when parsing quoted expressions" $ do
+            it "parses quoted lists" $ do
+                testParse "'(#\\a 1)"
+                    (List [ Atom "quote"
+                          , List [Character 'a', LispNumber (Complex (Integer 1) (Integer 0)) Inexact]])

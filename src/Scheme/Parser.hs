@@ -196,11 +196,28 @@ parseCharacter = string "#\\" >> (characterName <|> character)
           characterName = (string "space" >> return (Character ' '))
                         <|> (string "newline" >> return (Character '\n'))
 
+parseList :: Parser LispVal
+parseList = List <$> parseExpr `sepBy` spaces
+
+parseDottedList :: Parser LispVal
+parseDottedList = do
+    head <- parseExpr `endBy1` spaces
+    tail <- char '.' >> spaces >> parseExpr
+    return $ DottedList head tail
+
+parseQuoted :: Parser LispVal
+parseQuoted = do
+    char '\''
+    x <- parseExpr
+    return $ List [Atom "quote", x]
+
 parseExpr :: Parser LispVal
 parseExpr = try parseNumber
          <|> try parseCharacter
          <|> parseAtom
          <|> parseString
+         <|> parseQuoted
+         <|> between (char '(') (char ')') (try parseList <|> parseDottedList)
 
 readExpr :: String -> String
 readExpr input = case parse parseExpr "lisp" input of
