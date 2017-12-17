@@ -34,7 +34,8 @@ exactness -> #i | #e
 
 complex ND ->   (real ND)
                 | (real ND) @ (real ND)
-                | i
+                | +i
+                | -i
                 | (real ND)? + (unsignedReal ND)? i
                 | (real ND)? - (unsignedReal ND)? i
 
@@ -59,8 +60,8 @@ exactness -> #i | #e
 complex ->  (real)
             | (real) @ (real)
             | i
-            | (real ND)? + (unsignedReal ND)? i
-            | (real ND)? - (unsignedReal ND)? i
+            | (real)? + (unsignedReal)? i
+            | (real)? - (unsignedReal)? i
 
 real -> (sign)? (unsignedReal)
 unsignedReal -> (unsignedInteger) / (unsignedInteger)

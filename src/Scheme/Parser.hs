@@ -26,8 +26,7 @@ type NumberPrefix = (Base, Exactness)
 data LispVal = Atom String
              | List [LispVal]
              | DottedList [LispVal] LispVal
-             | ComplexLispNum ComplexNumber Exactness
-             | SimpleLispNum SimpleNumber Exactness
+             | LispNumber ComplexNumber Exactness
              | String String
              | Bool Bool
              | Character Char
@@ -77,8 +76,8 @@ readBase base | base >= 1 && base <= 10 =
 parseNumber :: Parser LispVal
 parseNumber = do
     (base, exactness) <- parseNumberPrefix
-    real <- parseReal base
-    return $ SimpleLispNum real exactness
+    complex <- parseComplex base
+    return $ LispNumber complex exactness
 
 -- | 'parseNumberPrefix' parses the base of a number and its exactness. Both are
 -- optional, and can be ordered as either base and exactness, or exactness and base.
@@ -87,8 +86,7 @@ parseNumberPrefix = parsePrefix <|> noPrefix
     where noPrefix = return (Decimal, Inexact)
           parseFirst = char '#' >> oneOf "bodhie"
           parseSecond :: Char -> Parser (Maybe Char)
-          parseSecond first = (Just <$> (char '#' >> oneOf (if first `elem` "bodh" then "ie" else "bodh")))
-                            <|> return Nothing
+          parseSecond first = optionMaybe (char '#' >> oneOf (if first `elem` "bodh" then "ie" else "bodh"))
           parsePrefix = do
             -- (base, exactness) <- orderModifiers <$> parseFirst <*> parseSecond ?
             first  <- parseFirst
@@ -101,9 +99,34 @@ parseNumberPrefix = parsePrefix <|> noPrefix
                 then (first, fromMaybe 'i' second)
                 else (fromMaybe 'd' second, first)
 
+parseComplex :: Base -> Parser ComplexNumber
+parseComplex base = try parseBoth
+                <|> try parseImag
+                <|> Complex <$> parseReal base <*> return (Integer 0)
+    where parseImagWithReal = do
+            imagSign <- oneOf "+-"
+            uimag <- option (Integer 1) (parseUnsignedReal base)
+            char 'i'
+            return $ applySign imagSign uimag
+          parseBoth = do
+            real <- parseReal base
+            imag <- parseImagWithReal
+            return $ Complex real imag
+          parseImag = do
+            imag <- parseImagWithReal
+            return $ Complex (Integer 0) imag
+
+parseImaginary :: Base -> Parser ComplexNumber
+parseImaginary base = do
+    real <- option (Integer 0) (try $ parseReal base)
+    imagSign <- oneOf "+-"
+    imag <- option (Integer 1) (try $ parseUnsignedReal base)
+    char 'i'
+    return $ Complex real (applySign imagSign imag)
+
 parseReal :: Base -> Parser SimpleNumber
 parseReal base = do
-    sign <- try (oneOf "+-") <|> return '+'
+    sign <- option '+' (oneOf "+-")
     applySign sign <$> parseUnsignedReal base
 
 parseUnsignedReal :: Base -> Parser SimpleNumber
