@@ -2,7 +2,8 @@ module Scheme.Parser where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
-import Numeric (readHex, readFloat)
+import Numeric    (readHex, readFloat)
+import Data.Maybe (fromMaybe)
 
 -- | 'SimpleNumber' describes scalar numbers.
 data SimpleNumber = Integer Integer
@@ -15,8 +16,12 @@ data SimpleNumber = Integer Integer
 data ComplexNumber = Complex SimpleNumber SimpleNumber
                    deriving (Show, Eq)
 
+data Base = Binary | Octal | Decimal | Hexadecimal
+
 data Exactness = Exact | Inexact
                deriving (Show, Eq)
+
+type NumberPrefix = (Base, Exactness)
 
 data LispVal = Atom String
              | List [LispVal]
@@ -69,51 +74,61 @@ readBase :: Integer -> String -> Integer
 readBase base | base >= 1 && base <= 10 =
     foldl (\acc c -> acc * base + read [c]) 0
 
-parseNumberWithBase :: Parser LispVal
-parseNumberWithBase = do
-    firstModifier <- char '#' >> oneOf "bodhie"
-    secondModifier <- (Just <$> parseOtherModifier firstModifier) <|> return Nothing
-    let (base, exactness) = determineBaseAndExactness firstModifier secondModifier
-    sign <- parseSign
-    num <- case base of
-        'b' -> readBase 2 <$> many1 (oneOf "01")
-        'o' -> readBase 8 <$> many1 (oneOf ['0'..'7'])
-        'd' -> parseDecimal
-        'h' -> (fst . head . readHex) <$> many1 (oneOf (['0'..'9'] ++ ['a'..'f']))
-        _   -> fail "Unexpected base"
-    let lispNum = applySign sign (Integer num)
-    let lispVal = SimpleLispNum lispNum exactness
-    return lispVal
-    where parseOtherModifier :: Char -> Parser Char
-          parseOtherModifier firstModifier =
-            char '#' >>
-            if firstModifier `elem` "bodh"
-                then oneOf "ie"
-                else oneOf "bodh"
-          determineBaseAndExactness :: Char -> Maybe Char -> (Char, Exactness)
-          determineBaseAndExactness firstModifier Nothing = (firstModifier, Inexact)
-          determineBaseAndExactness firstModifier (Just secondModifier) =
-            if firstModifier `elem` "bodh"
-                then (firstModifier, exactnessFromModifier secondModifier)
-                else (secondModifier, exactnessFromModifier firstModifier)
-
-parseDecimal :: Parser Integer
-parseDecimal = read <$> many1 digit
-
 parseNumber :: Parser LispVal
-parseNumber = try parseNumberWithBase <|>
-    (do exactness <- parseExactness
-        sign <- parseSign
-        ds <- parseDecimal
-        let lispVal = SimpleLispNum (applySign sign (Integer ds)) exactness
-        return lispVal)
+parseNumber = do
+    (base, exactness) <- parseNumberPrefix
+    real <- parseReal base
+    return $ SimpleLispNum real exactness
 
-parseLispFloat :: Parser LispVal
-parseLispFloat = do
-    exactness <- parseExactness
-    sign <- parseSign
-    float <- parseFloat
-    return $ SimpleLispNum (applySign sign float) exactness
+-- | 'parseNumberPrefix' parses the base of a number and its exactness. Both are
+-- optional, and can be ordered as either base and exactness, or exactness and base.
+parseNumberPrefix :: Parser NumberPrefix
+parseNumberPrefix = parsePrefix <|> noPrefix
+    where noPrefix = return (Decimal, Inexact)
+          parseFirst = char '#' >> oneOf "bodhie"
+          parseSecond :: Char -> Parser (Maybe Char)
+          parseSecond first = (Just <$> (char '#' >> oneOf (if first `elem` "bodh" then "ie" else "bodh")))
+                            <|> return Nothing
+          parsePrefix = do
+            -- (base, exactness) <- orderModifiers <$> parseFirst <*> parseSecond ?
+            first  <- parseFirst
+            second <- parseSecond first
+            let (base, exactness) = orderModifiers first second
+            return (baseFromModifier base, exactnessFromModifier exactness)
+          -- | 'orderModifiers' creates a pair of the base and exactness, in that order.
+          orderModifiers first second =
+            if first `elem` "bodh"
+                then (first, fromMaybe 'i' second)
+                else (fromMaybe 'd' second, first)
+
+parseReal :: Base -> Parser SimpleNumber
+parseReal base = do
+    sign <- try (oneOf "+-") <|> return '+'
+    applySign sign <$> parseUnsignedReal base
+
+parseUnsignedReal :: Base -> Parser SimpleNumber
+parseUnsignedReal Decimal = try (parseRational Decimal) <|> try parseDecimal <|> (Integer <$> parseUnsignedInteger Decimal)
+parseUnsignedReal base    = try (parseRational base) <|> (Integer <$> parseUnsignedInteger base)
+
+parseRational :: Base -> Parser SimpleNumber
+parseRational base = do
+    num <- parseUnsignedInteger base
+    char '/'
+    den <- parseUnsignedInteger base
+    return $ simplifyRational num den
+
+simplifyRational :: Integer -> Integer -> SimpleNumber
+simplifyRational num den | num `mod` den == 0 = Integer (num `div` den)
+                         | otherwise          = Rational num den
+
+parseUnsignedInteger :: Base -> Parser Integer
+parseUnsignedInteger Binary      = readBase 2 <$> many1 (oneOf "01")
+parseUnsignedInteger Octal       = readBase 8 <$> many1 (oneOf ['0'..'7'])
+parseUnsignedInteger Decimal     = read <$> many1 digit
+parseUnsignedInteger Hexadecimal = (fst . head . readHex) <$> many1 (oneOf (['0'..'9'] ++ ['a'..'f']))
+
+parseDecimal :: Parser SimpleNumber
+parseDecimal = try parseFloat <|> (Integer <$> parseUnsignedInteger Decimal)
 
 parseFloat :: Parser SimpleNumber
 parseFloat = do
@@ -137,11 +152,11 @@ exactnessFromModifier :: Char -> Exactness
 exactnessFromModifier 'i' = Inexact
 exactnessFromModifier 'e' = Exact
 
-parseExactness :: Parser Exactness
-parseExactness = exactnessFromModifier <$> ((char '#' >> oneOf "ie") <|> return 'i')
-
-parseSign :: Parser Char
-parseSign = try (oneOf "+-") <|> return '+'
+baseFromModifier :: Char -> Base
+baseFromModifier 'b' = Binary
+baseFromModifier 'o' = Octal
+baseFromModifier 'd' = Decimal
+baseFromModifier 'h' = Hexadecimal
 
 -- | The readFloat' function takes the digits before the decimal point and the digits
 -- after the decimal points, and uses 'Numeric.readFloat' to convert these parts into
@@ -159,8 +174,7 @@ parseCharacter = string "#\\" >> (characterName <|> character)
                         <|> (string "newline" >> return (Character '\n'))
 
 parseExpr :: Parser LispVal
-parseExpr = try parseLispFloat
-         <|> try parseNumber
+parseExpr = try parseNumber
          <|> try parseCharacter
          <|> parseAtom
          <|> parseString

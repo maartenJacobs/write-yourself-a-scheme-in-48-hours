@@ -28,9 +28,9 @@ ND -> 2 | 8 | 16
 
 num ND -> (prefix ND) (complex ND)
 
-prefix ND -> (radix ND) (exactness) | (exactness) (radix ND)
+prefix ND -> (radix ND) (exactness)? | (exactness)? (radix ND)
 radix ND -> #b | #o | #h
-exactness -> (empty) | #i | #e
+exactness -> #i | #e
 
 complex ND ->   (real ND)
                 | (real ND) @ (real ND)
@@ -39,8 +39,8 @@ complex ND ->   (real ND)
                 | (real ND)? - (unsignedReal ND)? i
 
 real ND -> (sign)? (unsignedReal ND)
-unsignedReal ND -> (unsignedInteger ND)
-                | (unsignedInteger ND) / (unsignedInteger ND)
+unsignedReal ND -> (unsignedInteger ND) / (unsignedInteger ND)
+                | (unsignedInteger ND)
 
 unsignedInteger ND -> (digit ND)+ #*
 
@@ -52,9 +52,9 @@ sign -> + | -
 ```
 num -> (prefix) (complex)
 
-prefix -> (radix)? (exactness) | (exactness) (radix)
+prefix -> (radix)? (exactness)? | (exactness)? (radix)?
 radix -> #d
-exactness -> (empty) | #i | #e
+exactness -> #i | #e
 
 complex ->  (real)
             | (real) @ (real)
@@ -63,11 +63,11 @@ complex ->  (real)
             | (real ND)? - (unsignedReal ND)? i
 
 real -> (sign)? (unsignedReal)
-unsignedReal -> (unsignedInteger)
-                | (unsignedInteger) / (unsignedInteger)
+unsignedReal -> (unsignedInteger) / (unsignedInteger)
+                | (unsignedInteger)
                 | (decimal)
 
-decimal ->  (unsignedInteger) (suffix)?
+decimal ->  (digit)+ #* (suffix)?
             | . (digit)+ #* (suffix)?
             | (digit)+ . (digit)* #* (suffix)?
             | (digit)+ #+ . #* (suffix)?

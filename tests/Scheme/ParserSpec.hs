@@ -10,7 +10,16 @@ import Scheme.Parser (
     )
 import Text.ParserCombinators.Parsec (parse)
 
-exactnessOptions :: [(String, Exactness)]
+type Lexeme = String
+
+-- | 'addBaseAndExactness' returns a list of possible number prefix forms,
+-- consisting of the base and exactness.
+addBaseAndExactness :: String -> String -> String -> [Lexeme]
+addBaseAndExactness inp base exact = [base ++ exact ++ inp, exact ++ base ++ inp]
+
+-- | 'exactnessOptions' lists the forms of exactness as seen in the
+-- source code of a Scheme program and which exactness the form represents.
+exactnessOptions :: [(Lexeme, Exactness)]
 exactnessOptions = [("", Inexact), ("#i", Inexact), ("#e", Exact)]
 
 testParse :: String -> LispVal -> Expectation
@@ -18,18 +27,21 @@ testParse input expected =
     parse parseExpr "(test input)" input `shouldBe` Right expected
 
 assertExactness :: String -> SimpleNumber -> Expectation
-assertExactness numInput expected = sequence_ [
-        testParse (e ++ numInput) (SimpleLispNum expected repr)
+assertExactness term expected = sequence_ [
+        testParse lexeme (SimpleLispNum expected repr)
         | (e, repr) <- exactnessOptions
+        , lexeme <- addBaseAndExactness term "" e
     ]
 
 assertExactnessWithBase :: Char -> String -> SimpleNumber -> Expectation
-assertExactnessWithBase base numInput expected = sequence_ [
-        testParse (pre ++ numInput) (SimpleLispNum expected repr)
-        | (e, repr) <- exactnessOptions,
-          beforeBase <- [True, False],
-          let pre = if beforeBase then e ++ ['#', base] else ['#', base] ++ e
+assertExactnessWithBase base term expected = sequence_ [
+        testParse lexeme (SimpleLispNum expected repr)
+        | (e, repr) <- exactnessOptions
+        , lexeme <- addBaseAndExactness term ['#', base] e
     ]
+
+assertParseSimpleNumber :: String -> SimpleNumber -> Expectation
+assertParseSimpleNumber inp expected = testParse inp (SimpleLispNum expected Inexact)
 
 spec :: Spec
 spec =
@@ -48,28 +60,28 @@ spec =
             it "parses bools" $ do
                 testParse "#t" (Bool True)
                 testParse "#f" (Bool False)
-        context "integer parsing" $ do
+        context "number parsing" $ do
             it "parses simple integers" $ do
-                testParse "1234" (SimpleLispNum (Integer 1234) Inexact)
-                testParse "+1234" (SimpleLispNum (Integer 1234) Inexact)
-                testParse "-1234" (SimpleLispNum (Integer (-1234)) Inexact)
+                assertParseSimpleNumber "1234" (Integer 1234)
+                assertParseSimpleNumber "+1234" (Integer 1234)
+                assertParseSimpleNumber "-1234" (Integer (-1234))
             it "parses simple integers with exactness" $ do
                 assertExactness "1234" (Integer 1234)
                 assertExactness "+1234" (Integer 1234)
                 assertExactness "-1234" (Integer (-1234))
             it "parses simple integers with different bases" $ do
-                testParse "#b1101" (SimpleLispNum (Integer 13) Inexact)
-                testParse "#b+1101" (SimpleLispNum (Integer 13) Inexact)
-                testParse "#b-1101" (SimpleLispNum (Integer (-13)) Inexact)
-                testParse "#h5ab10" (SimpleLispNum (Integer 371472) Inexact)
-                testParse "#h+5ab10" (SimpleLispNum (Integer 371472) Inexact)
-                testParse "#h-5ab10" (SimpleLispNum (Integer (-371472)) Inexact)
-                testParse "#o56" (SimpleLispNum (Integer 46) Inexact)
-                testParse "#o+56" (SimpleLispNum (Integer 46) Inexact)
-                testParse "#o-56" (SimpleLispNum (Integer (-46)) Inexact)
-                testParse "#d123" (SimpleLispNum (Integer 123) Inexact)
-                testParse "#d+123" (SimpleLispNum (Integer 123) Inexact)
-                testParse "#d-123" (SimpleLispNum (Integer (-123)) Inexact)
+                assertParseSimpleNumber "#b1101" (Integer 13)
+                assertParseSimpleNumber "#b+1101" (Integer 13)
+                assertParseSimpleNumber "#b-1101" (Integer (-13))
+                assertParseSimpleNumber "#h5ab10" (Integer 371472)
+                assertParseSimpleNumber "#h+5ab10" (Integer 371472)
+                assertParseSimpleNumber "#h-5ab10" (Integer (-371472))
+                assertParseSimpleNumber "#o56" (Integer 46)
+                assertParseSimpleNumber "#o+56" (Integer 46)
+                assertParseSimpleNumber "#o-56" (Integer (-46))
+                assertParseSimpleNumber "#d123" (Integer 123)
+                assertParseSimpleNumber "#d+123" (Integer 123)
+                assertParseSimpleNumber "#d-123" (Integer (-123))
             it "parses integers with different bases and exactness" $ do
                 assertExactnessWithBase 'b' "1101" (Integer 13)
                 assertExactnessWithBase 'b' "1101" (Integer 13)
@@ -78,17 +90,64 @@ spec =
                 assertExactnessWithBase 'h' "+5ab10" (Integer 371472)
                 assertExactnessWithBase 'h' "-5ab10" (Integer (-371472))
                 assertExactnessWithBase 'o' "56" (Integer 46)
-                assertExactnessWithBase 'o' "56" (Integer 46)
+                assertExactnessWithBase 'o' "+56" (Integer 46)
                 assertExactnessWithBase 'o' "-56" (Integer (-46))
                 assertExactnessWithBase 'd' "123" (Integer 123)
-                assertExactnessWithBase 'd' "123" (Integer 123)
+                assertExactnessWithBase 'd' "+123" (Integer 123)
                 assertExactnessWithBase 'd' "-123" (Integer (-123))
             it "parses floats" $ do
-                testParse "12.34" (SimpleLispNum (Float 12.34) Inexact)
-                testParse "+12.34" (SimpleLispNum (Float 12.34) Inexact)
-                testParse "-12.34" (SimpleLispNum (Float (-12.34)) Inexact)
-                testParse "0.23" (SimpleLispNum (Float 0.23) Inexact)
-                testParse "23." (SimpleLispNum (Float 23.0) Inexact)
+                assertParseSimpleNumber "12.34" (Float 12.34)
+                assertParseSimpleNumber "+12.34" (Float 12.34)
+                assertParseSimpleNumber "-12.34" (Float (-12.34))
+                assertParseSimpleNumber "0.23" (Float 0.23)
+                assertParseSimpleNumber "23." (Float 23.0)
+            it "parses rationals" $ do
+                assertParseSimpleNumber "12/5" (Rational 12 5)
+                assertParseSimpleNumber "+12/5" (Rational 12 5)
+                assertParseSimpleNumber "-12/5" (Rational (-12) 5)
+                assertParseSimpleNumber "2/3" (Rational 2 3)
+                assertParseSimpleNumber "+2/3" (Rational 2 3)
+                assertParseSimpleNumber "-2/3" (Rational (-2) 3)
+            it "simplifies rationals" $ do
+                assertParseSimpleNumber "12/2" (Integer 6)
+                assertParseSimpleNumber "+12/2" (Integer 6)
+                assertParseSimpleNumber "-12/2" (Integer (-6))
+                assertParseSimpleNumber "15/5" (Integer 3)
+                assertParseSimpleNumber "+15/5" (Integer 3)
+                assertParseSimpleNumber "-15/5" (Integer (-3))
+            it "parses rationals with exactness" $ do
+                assertExactness "12/5" (Rational 12 5)
+                assertExactness "+12/5" (Rational 12 5)
+                assertExactness "-12/5" (Rational (-12) 5)
+                assertExactness "12/2" (Integer 6)
+                assertExactness "+12/2" (Integer 6)
+                assertExactness "-12/2" (Integer (-6))
+            it "parses rationals with different bases" $ do
+                assertParseSimpleNumber "#b1100/101" (Rational 12 5)
+                assertParseSimpleNumber "#b+1100/101" (Rational 12 5)
+                assertParseSimpleNumber "#b-1100/101" (Rational (-12) 5)
+                assertParseSimpleNumber "#o14/5" (Rational 12 5)
+                assertParseSimpleNumber "#o+14/5" (Rational 12 5)
+                assertParseSimpleNumber "#o-14/5" (Rational (-12) 5)
+                assertParseSimpleNumber "#hc/5" (Rational 12 5)
+                assertParseSimpleNumber "#h+c/5" (Rational 12 5)
+                assertParseSimpleNumber "#h-c/5" (Rational (-12) 5)
+                assertParseSimpleNumber "#d12/5" (Rational 12 5)
+                assertParseSimpleNumber "#d+12/5" (Rational 12 5)
+                assertParseSimpleNumber "#d-12/5" (Rational (-12) 5)
+            it "parses rationals with different bases and exactness" $ do
+                assertExactnessWithBase 'b' "1100/101" (Rational 12 5)
+                assertExactnessWithBase 'b' "+1100/101" (Rational 12 5)
+                assertExactnessWithBase 'b' "-1100/101" (Rational (-12) 5)
+                assertExactnessWithBase 'o' "14/5" (Rational 12 5)
+                assertExactnessWithBase 'o' "+14/5" (Rational 12 5)
+                assertExactnessWithBase 'o' "-14/5" (Rational (-12) 5)
+                assertExactnessWithBase 'h' "c/5" (Rational 12 5)
+                assertExactnessWithBase 'h' "+c/5" (Rational 12 5)
+                assertExactnessWithBase 'h' "-c/5" (Rational (-12) 5)
+                assertExactnessWithBase 'd' "12/5" (Rational 12 5)
+                assertExactnessWithBase 'd' "+12/5" (Rational 12 5)
+                assertExactnessWithBase 'd' "-12/5" (Rational (-12) 5)
         context "character parsing" $ do
             it "parses character literals" $ do
                 testParse "#\\a" (Character 'a')
