@@ -211,12 +211,28 @@ parseQuoted = do
     x <- parseExpr
     return $ List [Atom "quote", x]
 
+parseUnquoted :: Parser LispVal
+parseUnquoted = do
+    char ','
+    splice <- optionMaybe (char '@')
+    x <- parseExpr
+    let unquoteOp = case splice of (Just _) -> "unquote-splicing"; Nothing  -> "unquote"
+    return $ List [Atom unquoteOp, x]
+
+parseBackQuoted :: Parser LispVal
+parseBackQuoted = do
+    char '`'
+    x <- parseExpr
+    return $ List [Atom "backquote", x]
+
 parseExpr :: Parser LispVal
 parseExpr = try parseNumber
          <|> try parseCharacter
          <|> parseAtom
          <|> parseString
          <|> parseQuoted
+         <|> parseUnquoted
+         <|> parseBackQuoted
          <|> between (char '(') (char ')') (try parseList <|> parseDottedList)
 
 readExpr :: String -> String

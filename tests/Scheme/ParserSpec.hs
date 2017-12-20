@@ -8,7 +8,7 @@ import Scheme.Parser (
     , ComplexNumber(..)
     , Exactness(..)
     )
-import Text.ParserCombinators.Parsec (parse)
+import Text.ParserCombinators.Parsec (parse, ParseError)
 
 type Lexeme = String
 
@@ -22,9 +22,15 @@ addBaseAndExactness inp base exact = [base ++ exact ++ inp, exact ++ base ++ inp
 exactnessOptions :: [(Lexeme, Exactness)]
 exactnessOptions = [("", Inexact), ("#i", Inexact), ("#e", Exact)]
 
+parse' :: String -> Either ParseError LispVal
+parse' input = parse parseExpr "(test input)" input
+
+assertExpandParse :: String -> String -> Expectation
+assertExpandParse unexpanded expanded = parse' unexpanded `shouldBe` parse' expanded
+
 testParse :: String -> LispVal -> Expectation
 testParse input expected =
-    parse parseExpr "(test input)" input `shouldBe` Right expected
+    parse' input `shouldBe` Right expected
 
 assertExactness :: String -> ComplexNumber -> Expectation
 assertExactness term expected = sequence_ [
@@ -49,6 +55,9 @@ assertParseSimpleNumber inp expected = assertParseComplexNumber inp (Complex exp
 
 simpleToComplex :: SimpleNumber -> ComplexNumber
 simpleToComplex simple = Complex simple (Integer 0)
+
+integerToLisp :: Integer -> LispVal
+integerToLisp int = LispNumber (simpleToComplex (Integer int)) Inexact
 
 spec :: Spec
 spec =
@@ -220,6 +229,9 @@ spec =
                 testParse "#\\ " (Character ' ')
                 testParse "#\\space" (Character ' ')
                 testParse "#\\newline" (Character '\n')
+        -- When lists can be parsed, we can use `parse'` to define our expectations.
+        -- This means we do not have to specify `LispVal` values manually, which can get quite
+        -- complex to manipulate by hand.
         context "when parsing lists" $ do
             it "parses empty lists" $ do
                 testParse "()" (List [])
@@ -232,7 +244,25 @@ spec =
             it "parses dotted pairs" $ do
                 testParse "(#\\a . 1)" (DottedList [Character 'a'] (LispNumber (Complex (Integer 1) (Integer 0)) Inexact))
         context "when parsing quoted expressions" $ do
+            it "parses quoted numbers" $ do
+                testParse "'1" (List [Atom "quote", integerToLisp 1])
             it "parses quoted lists" $ do
                 testParse "'(#\\a 1)"
                     (List [ Atom "quote"
                           , List [Character 'a', LispNumber (Complex (Integer 1) (Integer 0)) Inexact]])
+            it "parses quasiquoted lists" $ do
+                assertExpandParse "`(list ,(+ 1 2) 4)"
+                    "(backquote (list (unquote (+ 1 2)) 4))"
+                assertExpandParse "(let ((name 'a)) `(list ,name ',name))"
+                    "(let ((name (quote a))) (backquote (list (unquote name) (quote (unquote name)))))"
+                assertExpandParse "`(a ,(+ 1 2) ,@(map abs '(4 -5 6)) b)"
+                    "(backquote (a (unquote (+ 1 2)) (unquote-splicing (map abs (quote (4 -5 6)))) b))"
+                assertExpandParse "`((foo ,(- 10 3)) ,@(cdr '(c)) . ,(car '(cons)))"
+                    "(backquote ((foo (unquote (- 10 3))) (unquote-splicing (cdr (quote (c)))) . (unquote (car (quote (cons))))))"
+                -- Not yet supported?
+                -- testParse "`#(10 5 ,(sqrt 4) ,@(map sqrt '(16 9)) 8)"
+                --    (parse' "(backquote #(10 5 (unquote (sqrt 4)) (unquote-splicing (map sqrt (quote (16 9)))) 8))")
+                assertExpandParse "`(a `(b ,(+ 1 2) ,(foo ,(+ 1 3) d) e) f)"
+                    "(backquote (a (backquote (b (unquote (+ 1 2)) (unquote (foo (unquote (+ 1 3)) d)) e)) f))"
+                assertExpandParse "(let ((name1 'x) (name2 'y)) `(a `(b ,,name1 ,',name2 d) e))"
+                    "(let ((name1 (quote x)) (name2 (quote y))) (backquote (a (backquote (b ,(unquote name1) (unquote (quote (unquote name2))) d)) e)))"
