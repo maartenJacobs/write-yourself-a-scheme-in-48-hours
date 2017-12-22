@@ -213,15 +213,16 @@ parseListElementsUntilEnd = loop ([], Nothing)
                 expr <- optionMaybe parseExpr
                 maybe (return (exprs, Nothing))
                       (\expr -> do
+                        let exprs' = exprs ++ [expr]
                         sp <- optionMaybe spaces
-                        maybe (return (exprs ++ [expr], Nothing))
-                              (\_ -> do
-                                dot <- optionMaybe (char '.' >> spaces)
-                                maybe (loop (exprs ++ [expr], Nothing))
-                                      (const (return (exprs ++ [expr], Just '.')))
-                                      dot)
+                        maybe (return (exprs', Nothing))
+                              (const $ parseDotOrNext exprs' (loop (exprs', Nothing)))
                               sp)
                       expr
+
+parseDotOrNext :: [LispVal] -> Parser ([LispVal], Maybe Char) -> Parser ([LispVal], Maybe Char)
+parseDotOrNext exprs loop = optionMaybe (char '.' >> spaces) >>= maybe loop (const matchedDot)
+    where matchedDot = return (exprs, Just '.')
 
 parseQuoted :: Parser LispVal
 parseQuoted = do
