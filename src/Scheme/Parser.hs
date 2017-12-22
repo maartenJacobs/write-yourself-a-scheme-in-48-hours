@@ -1,9 +1,11 @@
+{-# LANGUAGE MultiWayIf #-}
+
 module Scheme.Parser where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
 import Numeric    (readHex, readFloat)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 
 -- | 'SimpleNumber' describes scalar numbers.
 data SimpleNumber = Integer Integer
@@ -197,13 +199,29 @@ parseCharacter = string "#\\" >> (characterName <|> character)
                         <|> (string "newline" >> return (Character '\n'))
 
 parseList :: Parser LispVal
-parseList = List <$> parseExpr `sepBy` spaces
+parseList = do
+    (exprs, dotEnd) <- parseListElementsUntilEnd
+    if | null exprs    -> return (List exprs)
+       | isJust dotEnd -> DottedList exprs <$> parseExpr
+       | otherwise     -> return $ List exprs
 
-parseDottedList :: Parser LispVal
-parseDottedList = do
-    head <- parseExpr `endBy1` spaces
-    tail <- char '.' >> spaces >> parseExpr
-    return $ DottedList head tail
+parseListElementsUntilEnd :: Parser ([LispVal], Maybe Char)
+parseListElementsUntilEnd = loop ([], Nothing)
+    where loop :: ([LispVal], Maybe Char) -> Parser ([LispVal], Maybe Char)
+          loop (exprs, _) =
+            do
+                expr <- optionMaybe parseExpr
+                maybe (return (exprs, Nothing))
+                      (\expr -> do
+                        sp <- optionMaybe spaces
+                        maybe (return (exprs ++ [expr], Nothing))
+                              (\_ -> do
+                                dot <- optionMaybe (char '.' >> spaces)
+                                maybe (loop (exprs ++ [expr], Nothing))
+                                      (const (return (exprs ++ [expr], Just '.')))
+                                      dot)
+                              sp)
+                      expr
 
 parseQuoted :: Parser LispVal
 parseQuoted = do
@@ -233,7 +251,7 @@ parseExpr = try parseNumber
          <|> parseQuoted
          <|> parseUnquoted
          <|> parseBackQuoted
-         <|> between (char '(') (char ')') (try parseList <|> parseDottedList)
+         <|> between (char '(') (char ')') parseList
 
 readExpr :: String -> String
 readExpr input = case parse parseExpr "lisp" input of

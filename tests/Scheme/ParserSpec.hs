@@ -242,7 +242,12 @@ spec =
                           , String "foo"])
         context "when parsing dotted lists" $ do
             it "parses dotted pairs" $ do
-                testParse "(#\\a . 1)" (DottedList [Character 'a'] (LispNumber (Complex (Integer 1) (Integer 0)) Inexact))
+                testParse "(#\\a . 1)"
+                          (DottedList [Character 'a']
+                                      (LispNumber (Complex (Integer 1) (Integer 0)) Inexact))
+                testParse "(\"first\" #\\b . 1)"
+                        (DottedList [String "first", Character 'b']
+                                    (LispNumber (Complex (Integer 1) (Integer 0)) Inexact))
         context "when parsing quoted expressions" $ do
             it "parses quoted numbers" $ do
                 testParse "'1" (List [Atom "quote", integerToLisp 1])
