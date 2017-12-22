@@ -1,13 +1,8 @@
 module Scheme.ParserSpec (spec) where
 
 import Test.Hspec
-import Scheme.Parser (
-      parseExpr
-    , LispVal(..)
-    , SimpleNumber(..)
-    , ComplexNumber(..)
-    , Exactness(..)
-    )
+import Scheme.Core
+import Scheme.Parser (parseExpr)
 import Text.ParserCombinators.Parsec (parse, ParseError)
 
 type Lexeme = String

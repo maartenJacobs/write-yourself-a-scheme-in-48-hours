@@ -2,37 +2,14 @@
 
 module Scheme.Parser where
 
+import Scheme.Core
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
 import Numeric    (readHex, readFloat)
 import Data.Maybe (fromMaybe, isJust)
 
--- | 'SimpleNumber' describes scalar numbers.
-data SimpleNumber = Integer Integer
-                  | Float Float
-                  | Rational Integer Integer
-                  deriving (Show, Eq)
-
--- | 'ComplexNumber' describes a complex number, consisting of a
--- real part and an imaginary part.
-data ComplexNumber = Complex SimpleNumber SimpleNumber
-                   deriving (Show, Eq)
-
 data Base = Binary | Octal | Decimal | Hexadecimal
-
-data Exactness = Exact | Inexact
-               deriving (Show, Eq)
-
 type NumberPrefix = (Base, Exactness)
-
-data LispVal = Atom String
-             | List [LispVal]
-             | DottedList [LispVal] LispVal
-             | LispNumber ComplexNumber Exactness
-             | String String
-             | Bool Bool
-             | Character Char
-             deriving (Show, Eq)
 
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
