@@ -1,6 +1,3 @@
---failure-report .hspec-failures
---rerun
---rerun-all-on-success
 --color
 --diff
 --print-cpu-time
