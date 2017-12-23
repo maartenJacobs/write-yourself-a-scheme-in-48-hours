@@ -13,4 +13,8 @@ spec =
         it "adds numbers" $ do
             let n1 = Number (Complex (Integer 12) (Integer 0)) Inexact
             let n2 = Number (Complex (Integer 23) (Integer 0)) Inexact
-            eval (List [Atom "+", n1, n2]) `shouldBe` Number (Complex (Integer 35) (Integer 0)) Inexact 
+            eval (List [Atom "+", n1, n2]) `shouldBe` Number (Complex (Integer 35) (Integer 0)) Inexact
+        it "subtracts numbers" $ do
+            let n1 = Number (Complex (Integer 12) (Integer 0)) Inexact
+            let n2 = Number (Complex (Integer 23) (Integer 0)) Inexact
+            eval (List [Atom "-", n1, n2]) `shouldBe` Number (Complex (Integer (-11)) (Integer 0)) Inexact

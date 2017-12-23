@@ -15,22 +15,57 @@ apply :: String -> [LispVal] -> LispVal
 apply func args = maybe (Bool False) ($ args) $ lookup func primitives
 
 primitives :: [(String, [LispVal] -> LispVal)]
-primitives = [("+", foldl1 addNumber)]
+primitives = [
+        ("+", foldl1 (genericNumOp (+)))
+      , ("-", foldl1 (genericNumOp (-)))
+    ]
 
-addNumber :: LispVal -> LispVal -> LispVal
-addNumber (Number (Complex real1 imag1) ex1) (Number (Complex real2 imag2) ex2) =
-    Number (Complex (addSimple real1 real2) (addSimple imag1 imag2)) (combineExact ex1 ex2)
-
-addSimple :: SimpleNumber -> SimpleNumber -> SimpleNumber
-addSimple (Integer i) (Integer j) = Integer (i + j)
-addSimple (Rational n1 d1) (Rational n2 d2) = Rational (n1' + n2') commonDen
-    where commonDen = max d1 d2
-          n1' = n1 * commonDen `div` d1
-          n2' = n2 * commonDen `div` d2
-addSimple (Float i) (Float j) = Float (i + j)
-addSimple a b = addSimple a' b'
-    where [a', b'] = unifyNumberTypes [a, b]
+genericNumOp :: (SimpleNumber -> SimpleNumber -> SimpleNumber) -> LispVal -> LispVal -> LispVal
+genericNumOp op (Number (Complex real1 imag1) ex1) (Number (Complex real2 imag2) ex2) =
+    Number (Complex (op real1' real2') (op imag1' imag2')) (combineExact ex1 ex2)
+    where [real1', real2'] = unifyNumberTypes [real1, real2]
+          [imag1', imag2'] = unifyNumberTypes [imag1, imag2]
 
 combineExact :: Exactness -> Exactness -> Exactness
 combineExact Exact Exact = Exact
 combineExact _ _ = Inexact
+
+incrToCommonBase :: SimpleNumber -> SimpleNumber -> SimpleNumber
+incrToCommonBase (Rational srcNum srcDen) (Rational dstNum dstDen) = Rational srcNum' commonDen
+    where commonDen = max srcDen dstDen
+          srcNum' = srcNum * commonDen `div` srcDen
+
+instance Num SimpleNumber where
+    -- + :: SimpleNumber -> SimpleNumber -> SimpleNumber
+    (+) (Integer i) (Integer j) = Integer (i + j)
+    (+) r1@(Rational _ _) r2@(Rational _ _) =
+        let (Rational n1 d) = incrToCommonBase r1 r2
+            (Rational n2 _) = incrToCommonBase r1 r2
+        in Rational (n1 + n2) d
+    (+) (Float i) (Float j) = Float (i + j)
+
+    -- * :: SimpleNumber -> SimpleNumber -> SimpleNumber
+    (*) (Integer i) (Integer j) = Integer (i * j)
+    (*) r1@(Rational _ _) r2@(Rational _ _) =
+        let (Rational n1 d) = incrToCommonBase r1 r2
+            (Rational n2 _) = incrToCommonBase r1 r2
+        in Rational (n1 * n2) d
+    (*) (Float i) (Float j) = Float (i * j)
+
+    -- abs :: SimpleNumber -> SimpleNumber
+    abs (Integer i) = Integer (abs i)
+    abs (Float f) = Float (abs f)
+    abs (Rational n d) = Rational (abs n) d
+
+    -- signum :: SimpleNumber -> SimpleNumber
+    signum (Integer i) = Integer (signum i)
+    signum (Float f) = Integer (round $ signum f)
+    signum (Rational n _) = Integer (signum n)
+
+    -- fromInteger :: Integer -> SimpleNumber
+    fromInteger = Integer
+
+    -- negate :: SimpleNumber -> SimpleNumber
+    negate (Integer i) = Integer (negate i)
+    negate (Float f) = Float (negate f)
+    negate (Rational n d) = Rational (negate n) d
