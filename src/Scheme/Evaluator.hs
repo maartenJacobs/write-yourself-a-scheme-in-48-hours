@@ -18,6 +18,9 @@ primitives :: [(String, [LispVal] -> LispVal)]
 primitives = [
         ("+", foldl1 (genericNumOp (+)))
       , ("-", foldl1 (genericNumOp (-)))
+      , ("boolean?", booleanOp isBoolean)
+      , ("pair?", booleanOp isPair)
+      , ("list?", booleanOp isList)
     ]
 
 genericNumOp :: (SimpleNumber -> SimpleNumber -> SimpleNumber) -> LispVal -> LispVal -> LispVal
@@ -69,3 +72,18 @@ instance Num SimpleNumber where
     negate (Integer i) = Integer (negate i)
     negate (Float f) = Float (negate f)
     negate (Rational n d) = Rational (negate n) d
+
+booleanOp :: ([LispVal] -> Bool) -> [LispVal] -> LispVal
+booleanOp op args = Bool $ op args
+
+isBoolean :: [LispVal] -> Bool
+isBoolean [(Bool _)] = True
+isBoolean _          = False
+
+isPair :: [LispVal] -> Bool
+isPair [(DottedList _ _)] = True
+isPair _                = False
+
+isList :: [LispVal] -> Bool
+isList [(List _)] = True
+isList _          = False
