@@ -27,32 +27,32 @@ testParse :: String -> LispVal -> Expectation
 testParse input expected =
     parse' input `shouldBe` Right expected
 
-assertExactness :: String -> ComplexNumber -> Expectation
+assertExactness :: String -> Complex -> Expectation
 assertExactness term expected = sequence_ [
-        testParse lexeme (LispNumber expected repr)
+        testParse lexeme (Number expected repr)
         | (e, repr) <- exactnessOptions
         , lexeme <- addBaseAndExactness term "" e
     ]
 
-assertExactnessWithBase :: Char -> String -> ComplexNumber -> Expectation
+assertExactnessWithBase :: Char -> String -> Complex -> Expectation
 assertExactnessWithBase base term expected = sequence_ [
-        testParse lexeme (LispNumber expected repr)
+        testParse lexeme (Number expected repr)
         | (e, repr) <- exactnessOptions
         , lexeme <- addBaseAndExactness term ['#', base] e
     ]
 
-assertParseComplexNumber :: String -> ComplexNumber -> Expectation
-assertParseComplexNumber inp expected = testParse inp expectedLispNumber
-    where expectedLispNumber = LispNumber expected Inexact
+assertParseComplex :: String -> Complex -> Expectation
+assertParseComplex inp expected = testParse inp expectedNumber
+    where expectedNumber = Number expected Inexact
 
 assertParseSimpleNumber :: String -> SimpleNumber -> Expectation
-assertParseSimpleNumber inp expected = assertParseComplexNumber inp (Complex expected (Integer 0))
+assertParseSimpleNumber inp expected = assertParseComplex inp (Complex expected (Integer 0))
 
-simpleToComplex :: SimpleNumber -> ComplexNumber
+simpleToComplex :: SimpleNumber -> Complex
 simpleToComplex simple = Complex simple (Integer 0)
 
 integerToLisp :: Integer -> LispVal
-integerToLisp int = LispNumber (simpleToComplex (Integer int)) Inexact
+integerToLisp int = Number (simpleToComplex (Integer int)) Inexact
 
 spec :: Spec
 spec =
@@ -160,28 +160,28 @@ spec =
                 assertExactnessWithBase 'd' "+12/5" (simpleToComplex (Rational 12 5))
                 assertExactnessWithBase 'd' "-12/5" (simpleToComplex (Rational (-12) 5))
             it "parses purely imaginary numbers with an integer as the imaginary part" $ do
-                assertParseComplexNumber "+i" (Complex (Integer 0) (Integer 1))
-                assertParseComplexNumber "-i" (Complex (Integer 0) (Integer (-1)))
-                assertParseComplexNumber "+1i" (Complex (Integer 0) (Integer 1))
-                assertParseComplexNumber "-1i" (Complex (Integer 0) (Integer (-1)))
-                assertParseComplexNumber "0+1i" (Complex (Integer 0) (Integer 1))
-                assertParseComplexNumber "0-1i" (Complex (Integer 0) (Integer (-1)))
+                assertParseComplex "+i" (Complex (Integer 0) (Integer 1))
+                assertParseComplex "-i" (Complex (Integer 0) (Integer (-1)))
+                assertParseComplex "+1i" (Complex (Integer 0) (Integer 1))
+                assertParseComplex "-1i" (Complex (Integer 0) (Integer (-1)))
+                assertParseComplex "0+1i" (Complex (Integer 0) (Integer 1))
+                assertParseComplex "0-1i" (Complex (Integer 0) (Integer (-1)))
             it "parses purely imaginary numbers with a float as the imaginary part" $ do
-                assertParseComplexNumber "+1.i" (Complex (Integer 0) (Float 1))
-                assertParseComplexNumber "-1.i" (Complex (Integer 0) (Float (-1)))
-                assertParseComplexNumber "0+.2i" (Complex (Integer 0) (Float 0.2))
-                assertParseComplexNumber "0-.2i" (Complex (Integer 0) (Float (-0.2)))
+                assertParseComplex "+1.i" (Complex (Integer 0) (Float 1))
+                assertParseComplex "-1.i" (Complex (Integer 0) (Float (-1)))
+                assertParseComplex "0+.2i" (Complex (Integer 0) (Float 0.2))
+                assertParseComplex "0-.2i" (Complex (Integer 0) (Float (-0.2)))
             it "parses purely imaginary numbers with a rational as the imaginary part" $ do
-                assertParseComplexNumber "+5/2i" (Complex (Integer 0) (Rational 5 2))
-                assertParseComplexNumber "-5/2i" (Complex (Integer 0) (Rational (-5) 2))
-                assertParseComplexNumber "0+5/2i" (Complex (Integer 0) (Rational 5 2))
-                assertParseComplexNumber "0-5/2i" (Complex (Integer 0) (Rational (-5) 2))
+                assertParseComplex "+5/2i" (Complex (Integer 0) (Rational 5 2))
+                assertParseComplex "-5/2i" (Complex (Integer 0) (Rational (-5) 2))
+                assertParseComplex "0+5/2i" (Complex (Integer 0) (Rational 5 2))
+                assertParseComplex "0-5/2i" (Complex (Integer 0) (Rational (-5) 2))
             it "parses strictly complex numbers" $ do
-                assertParseComplexNumber "1+1i" (Complex (Integer 1) (Integer 1))
-                assertParseComplexNumber "1+1.0i" (Complex (Integer 1) (Float 1.0))
-                assertParseComplexNumber "1+5/2i" (Complex (Integer 1) (Rational 5 2))
-                assertParseComplexNumber "1.0+1i" (Complex (Float 1.0) (Integer 1))
-                assertParseComplexNumber "5/2+1i" (Complex (Rational 5 2) (Integer 1))
+                assertParseComplex "1+1i" (Complex (Integer 1) (Integer 1))
+                assertParseComplex "1+1.0i" (Complex (Integer 1) (Float 1.0))
+                assertParseComplex "1+5/2i" (Complex (Integer 1) (Rational 5 2))
+                assertParseComplex "1.0+1i" (Complex (Float 1.0) (Integer 1))
+                assertParseComplex "5/2+1i" (Complex (Rational 5 2) (Integer 1))
             it "parses complex numbers with exactness" $ do
                 assertExactness "1+1i" (Complex (Integer 1) (Integer 1))
                 assertExactness "1+1.0i" (Complex (Integer 1) (Float 1.0))
@@ -189,20 +189,20 @@ spec =
                 assertExactness "1.0+1i" (Complex (Float 1.0) (Integer 1))
                 assertExactness "5/2+1i" (Complex (Rational 5 2) (Integer 1))
             it "parses complex numbers with different bases" $ do
-                assertParseComplexNumber "#d1+1i" (Complex (Integer 1) (Integer 1))
-                assertParseComplexNumber "#d1+1.0i" (Complex (Integer 1) (Float 1.0))
-                assertParseComplexNumber "#d1+5/2i" (Complex (Integer 1) (Rational 5 2))
-                assertParseComplexNumber "#d1.0+1i" (Complex (Float 1.0) (Integer 1))
-                assertParseComplexNumber "#d5/2+1i" (Complex (Rational 5 2) (Integer 1))
-                assertParseComplexNumber "#b1011+1101i" (Complex (Integer 11) (Integer 13))
-                assertParseComplexNumber "#b1011+101/10i" (Complex (Integer 11) (Rational 5 2))
-                assertParseComplexNumber "#b101/10+1011i" (Complex (Rational 5 2) (Integer 11))
-                assertParseComplexNumber "#o13+15i" (Complex (Integer 11) (Integer 13))
-                assertParseComplexNumber "#o13+15/21i" (Complex (Integer 11) (Rational 13 17))
-                assertParseComplexNumber "#o15/21+13i" (Complex (Rational 13 17) (Integer 11))
-                assertParseComplexNumber "#hb+di" (Complex (Integer 11) (Integer 13))
-                assertParseComplexNumber "#hb+d/11i" (Complex (Integer 11) (Rational 13 17))
-                assertParseComplexNumber "#hd/11+bi" (Complex (Rational 13 17) (Integer 11))
+                assertParseComplex "#d1+1i" (Complex (Integer 1) (Integer 1))
+                assertParseComplex "#d1+1.0i" (Complex (Integer 1) (Float 1.0))
+                assertParseComplex "#d1+5/2i" (Complex (Integer 1) (Rational 5 2))
+                assertParseComplex "#d1.0+1i" (Complex (Float 1.0) (Integer 1))
+                assertParseComplex "#d5/2+1i" (Complex (Rational 5 2) (Integer 1))
+                assertParseComplex "#b1011+1101i" (Complex (Integer 11) (Integer 13))
+                assertParseComplex "#b1011+101/10i" (Complex (Integer 11) (Rational 5 2))
+                assertParseComplex "#b101/10+1011i" (Complex (Rational 5 2) (Integer 11))
+                assertParseComplex "#o13+15i" (Complex (Integer 11) (Integer 13))
+                assertParseComplex "#o13+15/21i" (Complex (Integer 11) (Rational 13 17))
+                assertParseComplex "#o15/21+13i" (Complex (Rational 13 17) (Integer 11))
+                assertParseComplex "#hb+di" (Complex (Integer 11) (Integer 13))
+                assertParseComplex "#hb+d/11i" (Complex (Integer 11) (Rational 13 17))
+                assertParseComplex "#hd/11+bi" (Complex (Rational 13 17) (Integer 11))
             it "parses complex numbers with different bases and exactness" $ do
                 assertExactnessWithBase 'd' "1+1i" (Complex (Integer 1) (Integer 1))
                 assertExactnessWithBase 'd' "1+1.0i" (Complex (Integer 1) (Float 1.0))
@@ -232,24 +232,24 @@ spec =
                 testParse "()" (List [])
             it "parses non-empty lists" $ do
                 testParse "(#e1 #\\a \"foo\")"
-                    (List [ LispNumber (Complex (Integer 1) (Integer 0)) Exact
+                    (List [ Number (Complex (Integer 1) (Integer 0)) Exact
                           , Character 'a'
                           , String "foo"])
         context "when parsing dotted lists" $ do
             it "parses dotted pairs" $ do
                 testParse "(#\\a . 1)"
                           (DottedList [Character 'a']
-                                      (LispNumber (Complex (Integer 1) (Integer 0)) Inexact))
+                                      (Number (Complex (Integer 1) (Integer 0)) Inexact))
                 testParse "(\"first\" #\\b . 1)"
                         (DottedList [String "first", Character 'b']
-                                    (LispNumber (Complex (Integer 1) (Integer 0)) Inexact))
+                                    (Number (Complex (Integer 1) (Integer 0)) Inexact))
         context "when parsing quoted expressions" $ do
             it "parses quoted numbers" $ do
                 testParse "'1" (List [Atom "quote", integerToLisp 1])
             it "parses quoted lists" $ do
                 testParse "'(#\\a 1)"
                     (List [ Atom "quote"
-                          , List [Character 'a', LispNumber (Complex (Integer 1) (Integer 0)) Inexact]])
+                          , List [Character 'a', Number (Complex (Integer 1) (Integer 0)) Inexact]])
             it "parses quasiquoted lists" $ do
                 assertExpandParse "`(list ,(+ 1 2) 4)"
                     "(backquote (list (unquote (+ 1 2)) 4))"

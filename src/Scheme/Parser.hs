@@ -56,7 +56,7 @@ parseNumber :: Parser LispVal
 parseNumber = do
     (base, exactness) <- parseNumberPrefix
     complex <- parseComplex base
-    return $ LispNumber complex exactness
+    return $ Number complex exactness
 
 -- | 'parseNumberPrefix' parses the base of a number and its exactness. Both are
 -- optional, and can be ordered as either base and exactness, or exactness and base.
@@ -78,7 +78,7 @@ parseNumberPrefix = parsePrefix <|> noPrefix
                 then (first, fromMaybe 'i' second)
                 else (fromMaybe 'd' second, first)
 
-parseComplex :: Base -> Parser ComplexNumber
+parseComplex :: Base -> Parser Complex
 parseComplex base = try parseBoth
                 <|> try parseImag
                 <|> Complex <$> parseReal base <*> return (Integer 0)
@@ -95,7 +95,7 @@ parseComplex base = try parseBoth
             imag <- parseImagWithReal
             return $ Complex (Integer 0) imag
 
-parseImaginary :: Base -> Parser ComplexNumber
+parseImaginary :: Base -> Parser Complex
 parseImaginary base = do
     real <- option (Integer 0) (try $ parseReal base)
     imagSign <- oneOf "+-"
@@ -230,8 +230,3 @@ parseExpr = try parseNumber
          <|> parseUnquoted
          <|> parseBackQuoted
          <|> between (char '(') (char ')') parseList
-
-readExpr :: String -> String
-readExpr input = case parse parseExpr "lisp" input of
-    Left err -> "No match: " ++ show err
-    Right val -> "Found value: " ++ show val
