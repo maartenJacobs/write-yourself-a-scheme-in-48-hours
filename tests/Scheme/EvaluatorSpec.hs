@@ -37,3 +37,7 @@ spec =
             let num = Complex (Integer 1234) (Integer 0)
             eval (List [Atom "exact?", Number num Exact]) `shouldBe` Bool True
             eval (List [Atom "exact?", Number num Inexact]) `shouldBe` Bool False
+        it "identifies symbols/atoms" $ do
+            eval (List [Atom "symbol?", List [Atom "quote", Atom "a"]]) `shouldBe` Bool True
+            let num = Complex (Integer 1234) (Integer 0)
+            eval (List [Atom "symbol?", Number num Exact]) `shouldBe` Bool False
