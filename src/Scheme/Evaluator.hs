@@ -26,6 +26,7 @@ primitives = [
       , ("symbol?", booleanOp isAtom)
       , ("symbol->string", symbolToString)
       , ("string->symbol", stringToSymbol)
+      , ("char?", booleanOp isChar)
     ]
 
 genericNumOp :: (SimpleNumber -> SimpleNumber -> SimpleNumber) -> LispVal -> LispVal -> LispVal
@@ -95,3 +96,7 @@ symbolToString [(Atom s)] = String s
 
 stringToSymbol :: [LispVal] -> LispVal
 stringToSymbol [(String s)] = Atom s
+
+isChar :: [LispVal] -> Bool
+isChar [(Character _)] = True
+isChar _               = False

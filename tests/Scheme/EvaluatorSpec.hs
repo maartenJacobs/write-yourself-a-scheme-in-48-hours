@@ -44,3 +44,6 @@ spec =
         it "converts strings to and from symbols" $ do
             eval (List [Atom "symbol->string", List [Atom "quote", Atom "foo"]]) `shouldBe` String "foo"
             eval (List [Atom "string->symbol", String "foo"]) `shouldBe` Atom "foo"
+        it "identifies characters" $ do
+            eval (List [Atom "char?", Character 'a']) `shouldBe` Bool True
+            eval (List [Atom "char?", String "foo"]) `shouldBe` Bool False
