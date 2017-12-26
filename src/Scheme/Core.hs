@@ -9,9 +9,12 @@ to display result values to the user and for debugging, as the constructed
 -}
 module Scheme.Core where
 
+import qualified Data.Ratio as Ratio
+import Data.Ratio ((%)) -- Qualified operators would be a pain.
+
 -- | 'SimpleNumber' describes scalar numbers in increasing order of a number type tower.
 data SimpleNumber = Integer Integer
-                  | Rational Integer Integer
+                  | Rational Rational
                   | Float Float
                   deriving (Eq, Ord)
 
@@ -57,13 +60,13 @@ instance Show Complex where
                               | otherwise    = show n
               isPositive (Integer i) = i >= 0
               isPositive (Float f) = f >= 0
-              isPositive (Rational num _) = num >= 0
+              isPositive (Rational r) = Ratio.numerator r >= 0
 
 instance Show SimpleNumber where
     -- show :: SimpleNumber -> String
     show (Integer i) = show i
     show (Float f) = show f
-    show (Rational num den) = show num ++ "/" ++ show den
+    show (Rational r) = show (Ratio.numerator r) ++ "/" ++ show (Ratio.denominator r)
 
 instance Show Exactness where
     -- show :: Exactness -> String
@@ -75,8 +78,8 @@ unifyNumberTypes ns = map (unifyNumberType (maximum ns)) ns
 
 unifyNumberType :: SimpleNumber -> SimpleNumber -> SimpleNumber
 unifyNumberType (Integer _) i@(Integer _) = i
-unifyNumberType (Rational _ _) (Integer i) = Rational i 1
-unifyNumberType (Rational _ _) r@(Rational _ _) = r
+unifyNumberType (Rational _) (Integer i) = Rational (i%1)
+unifyNumberType (Rational _) r@(Rational _) = r
 unifyNumberType (Float _) f@(Float _) = f
 unifyNumberType (Float _) (Integer i) = Float (fromIntegral i :: Float)
-unifyNumberType (Float _) (Rational num den) = Float (fromIntegral num / fromIntegral den)
+unifyNumberType (Float _) (Rational r) = Float (fromRational r :: Float)

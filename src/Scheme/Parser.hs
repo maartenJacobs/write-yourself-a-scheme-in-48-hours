@@ -7,6 +7,8 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
 import Numeric    (readHex, readFloat)
 import Data.Maybe (fromMaybe, isJust)
+import Data.Ratio ((%))
+import qualified Data.Ratio as Ratio
 
 data Base = Binary | Octal | Decimal | Hexadecimal
 type NumberPrefix = (Base, Exactness)
@@ -121,7 +123,7 @@ parseRational base = do
 
 simplifyRational :: Integer -> Integer -> SimpleNumber
 simplifyRational num den | num `mod` den == 0 = Integer (num `div` den)
-                         | otherwise          = Rational num den
+                         | otherwise          = Rational (num % den)
 
 parseUnsignedInteger :: Base -> Parser Integer
 parseUnsignedInteger Binary      = readBase 2 <$> many1 (oneOf "01")
@@ -143,9 +145,9 @@ parseFloat = do
 applySign :: Char -> SimpleNumber -> SimpleNumber
 applySign sign n =
     case n of
-        Integer i    -> Integer (signOp sign i)
-        Float f      -> Float (signOp sign f)
-        Rational n d -> Rational (signOp sign n) d
+        Integer i  -> Integer (signOp sign i)
+        Float f    -> Float (signOp sign f)
+        Rational r -> Rational (signOp sign r)
     where signOp :: Num a => Char -> a -> a
           signOp '+' = id
           signOp '-' = negate

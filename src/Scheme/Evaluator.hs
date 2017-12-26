@@ -2,6 +2,7 @@ module Scheme.Evaluator where
 
 import Scheme.Core
 import Data.Maybe (maybe)
+import qualified Data.Ratio as Ratio
 
 eval :: LispVal -> LispVal
 eval val@(String _) = val
@@ -33,37 +34,26 @@ combineExact :: Exactness -> Exactness -> Exactness
 combineExact Exact Exact = Exact
 combineExact _ _ = Inexact
 
-incrToCommonBase :: SimpleNumber -> SimpleNumber -> SimpleNumber
-incrToCommonBase (Rational srcNum srcDen) (Rational dstNum dstDen) = Rational srcNum' commonDen
-    where commonDen = max srcDen dstDen
-          srcNum' = srcNum * commonDen `div` srcDen
-
 instance Num SimpleNumber where
     -- + :: SimpleNumber -> SimpleNumber -> SimpleNumber
     (+) (Integer i) (Integer j) = Integer (i + j)
-    (+) r1@(Rational _ _) r2@(Rational _ _) =
-        let (Rational n1 d) = incrToCommonBase r1 r2
-            (Rational n2 _) = incrToCommonBase r1 r2
-        in Rational (n1 + n2) d
+    (+) (Rational r1) (Rational r2) = Rational (r1 + r2)
     (+) (Float i) (Float j) = Float (i + j)
 
     -- * :: SimpleNumber -> SimpleNumber -> SimpleNumber
     (*) (Integer i) (Integer j) = Integer (i * j)
-    (*) r1@(Rational _ _) r2@(Rational _ _) =
-        let (Rational n1 d) = incrToCommonBase r1 r2
-            (Rational n2 _) = incrToCommonBase r1 r2
-        in Rational (n1 * n2) d
+    (*) (Rational r1) (Rational r2) = Rational (r1 * r2)
     (*) (Float i) (Float j) = Float (i * j)
 
     -- abs :: SimpleNumber -> SimpleNumber
     abs (Integer i) = Integer (abs i)
     abs (Float f) = Float (abs f)
-    abs (Rational n d) = Rational (abs n) d
+    abs (Rational r) = Rational (abs r)
 
     -- signum :: SimpleNumber -> SimpleNumber
     signum (Integer i) = Integer (signum i)
     signum (Float f) = Integer (round $ signum f)
-    signum (Rational n _) = Integer (signum n)
+    signum (Rational r) = Integer (Ratio.numerator $ signum r)
 
     -- fromInteger :: Integer -> SimpleNumber
     fromInteger = Integer
@@ -71,7 +61,7 @@ instance Num SimpleNumber where
     -- negate :: SimpleNumber -> SimpleNumber
     negate (Integer i) = Integer (negate i)
     negate (Float f) = Float (negate f)
-    negate (Rational n d) = Rational (negate n) d
+    negate (Rational r) = Rational (negate r)
 
 booleanOp :: ([LispVal] -> Bool) -> [LispVal] -> LispVal
 booleanOp op args = Bool $ op args
