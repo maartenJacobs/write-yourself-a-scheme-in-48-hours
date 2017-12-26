@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 {-|
 Module:      Scheme.Core
 Description: Core datatypes of Scheme
@@ -11,6 +13,7 @@ module Scheme.Core where
 
 import qualified Data.Ratio as Ratio
 import Data.Ratio ((%)) -- Qualified operators would be a pain.
+import qualified Control.Lens as Lens
 
 -- | 'SimpleNumber' describes scalar numbers in increasing order of a number type tower.
 data SimpleNumber = Integer Integer
@@ -33,6 +36,8 @@ data LispVal = Atom String
              | Bool Bool
              | Character Char
              deriving (Eq)
+
+Lens.makePrisms ''LispVal
 
 -- | 'LispVal' is an instance of 'Show' to standardise printing of Scheme values.
 -- The format is the same as the Scheme input, but with a single space between

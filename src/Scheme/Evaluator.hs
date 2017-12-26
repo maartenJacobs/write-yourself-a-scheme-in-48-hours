@@ -3,6 +3,7 @@ module Scheme.Evaluator where
 import Scheme.Core
 import Data.Maybe (maybe)
 import qualified Data.Ratio as Ratio
+import Control.Lens.Extras (is)
 
 eval :: LispVal -> LispVal
 eval val@(String _) = val
@@ -19,14 +20,14 @@ primitives :: [(String, [LispVal] -> LispVal)]
 primitives = [
         ("+", foldl1 (genericNumOp (+)))
       , ("-", foldl1 (genericNumOp (-)))
-      , ("boolean?", booleanOp isBoolean)
-      , ("pair?", booleanOp isPair)
-      , ("list?", booleanOp isList)
+      , ("boolean?", booleanOp $ all (is _Bool))
+      , ("pair?", booleanOp $ all (is _DottedList))
+      , ("list?", booleanOp $ all (is _List))
+      , ("symbol?", booleanOp $ all (is _Atom))
+      , ("char?", booleanOp $ all (is _Character))
       , ("exact?", booleanOp isExact)
-      , ("symbol?", booleanOp isAtom)
       , ("symbol->string", symbolToString)
       , ("string->symbol", stringToSymbol)
-      , ("char?", booleanOp isChar)
     ]
 
 genericNumOp :: (SimpleNumber -> SimpleNumber -> SimpleNumber) -> LispVal -> LispVal -> LispVal
@@ -71,32 +72,12 @@ instance Num SimpleNumber where
 booleanOp :: ([LispVal] -> Bool) -> [LispVal] -> LispVal
 booleanOp op args = Bool $ op args
 
-isBoolean :: [LispVal] -> Bool
-isBoolean [(Bool _)] = True
-isBoolean _          = False
-
-isPair :: [LispVal] -> Bool
-isPair [(DottedList _ _)] = True
-isPair _                = False
-
-isList :: [LispVal] -> Bool
-isList [(List _)] = True
-isList _          = False
-
 isExact :: [LispVal] -> Bool
 isExact [(Number _ Exact)] = True
 isExact _                  = False
-
-isAtom :: [LispVal] -> Bool
-isAtom [(Atom _)] = True
-isAtom _          = False
 
 symbolToString :: [LispVal] -> LispVal
 symbolToString [(Atom s)] = String s
 
 stringToSymbol :: [LispVal] -> LispVal
 stringToSymbol [(String s)] = Atom s
-
-isChar :: [LispVal] -> Bool
-isChar [(Character _)] = True
-isChar _               = False
