@@ -41,3 +41,6 @@ spec =
             eval (List [Atom "symbol?", List [Atom "quote", Atom "a"]]) `shouldBe` Bool True
             let num = Complex (Integer 1234) (Integer 0)
             eval (List [Atom "symbol?", Number num Exact]) `shouldBe` Bool False
+        it "converts strings to and from symbols" $ do
+            eval (List [Atom "symbol->string", List [Atom "quote", Atom "foo"]]) `shouldBe` String "foo"
+            eval (List [Atom "string->symbol", String "foo"]) `shouldBe` Atom "foo"

@@ -24,6 +24,8 @@ primitives = [
       , ("list?", booleanOp isList)
       , ("exact?", booleanOp isExact)
       , ("symbol?", booleanOp isAtom)
+      , ("symbol->string", symbolToString)
+      , ("string->symbol", stringToSymbol)
     ]
 
 genericNumOp :: (SimpleNumber -> SimpleNumber -> SimpleNumber) -> LispVal -> LispVal -> LispVal
@@ -87,3 +89,9 @@ isExact _                  = False
 isAtom :: [LispVal] -> Bool
 isAtom [(Atom _)] = True
 isAtom _          = False
+
+symbolToString :: [LispVal] -> LispVal
+symbolToString [(Atom s)] = String s
+
+stringToSymbol :: [LispVal] -> LispVal
+stringToSymbol [(String s)] = Atom s
