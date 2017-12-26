@@ -4,30 +4,34 @@ import Scheme.Core
 import Data.Maybe (maybe)
 import qualified Data.Ratio as Ratio
 import Control.Lens.Extras (is)
+import qualified Control.Monad.Error as MErr -- Deprecated; TODO: use Control.Monad.Except instead
 
-eval :: LispVal -> LispVal
-eval val@(String _) = val
-eval val@(Number _ _) = val
-eval val@(Bool _) = val
-eval val@(Character _) = val
-eval (List [Atom "quote", val]) = val
-eval (List (Atom func : args)) = apply func $ map eval args
+eval :: LispVal -> ThrowsError LispVal
+eval val@(String _) = return val
+eval val@(Number _ _) = return val
+eval val@(Bool _) = return val
+eval val@(Character _) = return val
+eval (List [Atom "quote", val]) = return val
+eval (List (Atom func : args)) = mapM eval args >>= apply func
+eval badForm = MErr.throwError $ BadSpecialForm "Unrecognized special form" badForm
 
-apply :: String -> [LispVal] -> LispVal
-apply func args = maybe (Bool False) ($ args) $ lookup func primitives
+apply :: String -> [LispVal] -> ThrowsError LispVal
+apply func args = maybe (MErr.throwError $ NotFunction "Unrecognized primitive function args" func)
+                        ($ args)
+                        (lookup func primitives)
 
-primitives :: [(String, [LispVal] -> LispVal)]
+primitives :: [(String, [LispVal] -> ThrowsError LispVal)]
 primitives = [
-        ("+", foldl1 (genericNumOp (+)))
-      , ("-", foldl1 (genericNumOp (-)))
+        ("+", return . foldl1 (genericNumOp (+)))
+      , ("-", return . foldl1 (genericNumOp (-)))
       , ("boolean?", booleanOp $ all (is _Bool))
       , ("pair?", booleanOp $ all (is _DottedList))
       , ("list?", booleanOp $ all (is _List))
       , ("symbol?", booleanOp $ all (is _Atom))
-      , ("char?", booleanOp $ all (is _Character))
+      , ("char?",  booleanOp $ all (is _Character))
       , ("exact?", booleanOp isExact)
-      , ("symbol->string", symbolToString)
-      , ("string->symbol", stringToSymbol)
+      , ("symbol->string", singleArgOp symbolToString)
+      , ("string->symbol", singleArgOp stringToSymbol)
     ]
 
 genericNumOp :: (SimpleNumber -> SimpleNumber -> SimpleNumber) -> LispVal -> LispVal -> LispVal
@@ -69,15 +73,19 @@ instance Num SimpleNumber where
     negate (Float f) = Float (negate f)
     negate (Rational r) = Rational (negate r)
 
-booleanOp :: ([LispVal] -> Bool) -> [LispVal] -> LispVal
-booleanOp op args = Bool $ op args
+booleanOp :: ([LispVal] -> Bool) -> [LispVal] -> ThrowsError LispVal
+booleanOp op args = return . Bool $ op args
 
 isExact :: [LispVal] -> Bool
 isExact [(Number _ Exact)] = True
 isExact _                  = False
 
-symbolToString :: [LispVal] -> LispVal
-symbolToString [(Atom s)] = String s
+symbolToString :: LispVal -> ThrowsError LispVal
+symbolToString (Atom s) = return $ String s
 
-stringToSymbol :: [LispVal] -> LispVal
-stringToSymbol [(String s)] = Atom s
+stringToSymbol :: LispVal -> ThrowsError LispVal
+stringToSymbol (String s) = return $ Atom s
+
+singleArgOp :: (LispVal -> ThrowsError LispVal) -> [LispVal] -> ThrowsError LispVal
+singleArgOp op [v] = op v
+singleArgOp _  vs  = MErr.throwError $ NumArgs 1 vs

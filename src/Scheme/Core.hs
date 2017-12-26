@@ -14,6 +14,8 @@ module Scheme.Core where
 import qualified Data.Ratio as Ratio
 import Data.Ratio ((%)) -- Qualified operators would be a pain.
 import qualified Control.Lens as Lens
+import Text.ParserCombinators.Parsec (ParseError)
+import qualified Control.Monad.Error as MErr -- Deprecated; TODO: use Control.Monad.Except instead
 
 -- | 'SimpleNumber' describes scalar numbers in increasing order of a number type tower.
 data SimpleNumber = Integer Integer
@@ -38,6 +40,15 @@ data LispVal = Atom String
              deriving (Eq)
 
 Lens.makePrisms ''LispVal
+
+data LispError = NumArgs Integer [LispVal]
+               | TypeMismatch String LispVal
+               | Parser ParseError
+               | BadSpecialForm String LispVal
+               | NotFunction String String
+               | UnboundVar String String
+               | Default String
+               deriving (Eq)
 
 -- | 'LispVal' is an instance of 'Show' to standardise printing of Scheme values.
 -- The format is the same as the Scheme input, but with a single space between
@@ -76,6 +87,26 @@ instance Show SimpleNumber where
 instance Show Exactness where
     -- show :: Exactness -> String
     show _ = ""
+
+instance Show LispError where
+    -- show :: LispError -> String
+    show (UnboundVar message varname)  = message ++ ": " ++ varname
+    show (BadSpecialForm message form) = message ++ ": " ++ show form
+    show (NotFunction message func)    = message ++ ": " ++ show func
+    show (NumArgs expected found)      = "Expected " ++ show expected ++ " args; found values " ++ unwordsList found
+    show (TypeMismatch expected found) = "Invalid type: expected " ++ expected ++ ", found " ++ show found
+    show (Parser parseErr)             = "Parse error at " ++ show parseErr
+
+instance MErr.Error LispError where
+    noMsg = Default "An error has occurred"
+    strMsg = Default
+
+type ThrowsError = Either LispError
+
+trapError action = MErr.catchError action (return . show)
+
+extractValue :: ThrowsError a -> a
+extractValue (Right val) = val
 
 unifyNumberTypes :: [SimpleNumber] -> [SimpleNumber]
 unifyNumberTypes ns = map (unifyNumberType (maximum ns)) ns

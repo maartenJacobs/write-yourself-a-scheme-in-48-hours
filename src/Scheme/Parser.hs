@@ -9,6 +9,7 @@ import Numeric    (readHex, readFloat)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Ratio ((%))
 import qualified Data.Ratio as Ratio
+import qualified Control.Monad.Error as MErr -- Deprecated; TODO: use Control.Monad.Except instead
 
 data Base = Binary | Octal | Decimal | Hexadecimal
 type NumberPrefix = (Base, Exactness)
@@ -232,3 +233,9 @@ parseExpr = try parseNumber
          <|> parseUnquoted
          <|> parseBackQuoted
          <|> between (char '(') (char ')') parseList
+
+readExpr :: String -> ThrowsError LispVal
+readExpr input =
+    case parse parseExpr "lisp" input of
+        Left err -> MErr.throwError $ Parser err
+        Right val -> return val
