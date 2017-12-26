@@ -75,8 +75,7 @@ instance Show SimpleNumber where
 
 instance Show Exactness where
     -- show :: Exactness -> String
-    show Inexact = ""
-    show Exact = "#e"
+    show _ = ""
 
 unifyNumberTypes :: [SimpleNumber] -> [SimpleNumber]
 unifyNumberTypes ns = map (unifyNumberType (maximum ns)) ns
