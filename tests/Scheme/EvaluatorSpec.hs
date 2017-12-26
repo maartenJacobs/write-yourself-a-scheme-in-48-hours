@@ -33,3 +33,7 @@ spec =
                                           , List [Character 'a']]]) `shouldBe` Bool True
             eval (List [Atom "list?", Bool False]) `shouldBe` Bool False
             eval (List [Atom "list?", Character 'a']) `shouldBe` Bool False
+        it "confirms exactness" $ do
+            let num = Complex (Integer 1234) (Integer 0)
+            eval (List [Atom "exact?", Number num Exact]) `shouldBe` Bool True
+            eval (List [Atom "exact?", Number num Inexact]) `shouldBe` Bool False

@@ -22,6 +22,7 @@ primitives = [
       , ("boolean?", booleanOp isBoolean)
       , ("pair?", booleanOp isPair)
       , ("list?", booleanOp isList)
+      , ("exact?", booleanOp isExact)
     ]
 
 genericNumOp :: (SimpleNumber -> SimpleNumber -> SimpleNumber) -> LispVal -> LispVal -> LispVal
@@ -77,3 +78,7 @@ isPair _                = False
 isList :: [LispVal] -> Bool
 isList [(List _)] = True
 isList _          = False
+
+isExact :: [LispVal] -> Bool
+isExact [(Number _ Exact)] = True
+isExact _                  = False

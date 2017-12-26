@@ -16,7 +16,7 @@ addBaseAndExactness inp base exact = [base ++ exact ++ inp, exact ++ base ++ inp
 -- | 'exactnessOptions' lists the forms of exactness as seen in the
 -- source code of a Scheme program and which exactness the form represents.
 exactnessOptions :: [(Lexeme, Exactness)]
-exactnessOptions = [("", Inexact), ("#i", Inexact), ("#e", Exact)]
+exactnessOptions = [("", Exact), ("#i", Inexact), ("#e", Exact)]
 
 parse' :: String -> Either ParseError LispVal
 parse' input = parse parseExpr "(test input)" input
@@ -44,7 +44,7 @@ assertExactnessWithBase base term expected = sequence_ [
 
 assertParseComplex :: String -> Complex -> Expectation
 assertParseComplex inp expected = testParse inp expectedNumber
-    where expectedNumber = Number expected Inexact
+    where expectedNumber = Number expected Exact
 
 assertParseSimpleNumber :: String -> SimpleNumber -> Expectation
 assertParseSimpleNumber inp expected = assertParseComplex inp (Complex expected (Integer 0))
@@ -53,7 +53,7 @@ simpleToComplex :: SimpleNumber -> Complex
 simpleToComplex simple = Complex simple (Integer 0)
 
 integerToLisp :: Integer -> LispVal
-integerToLisp int = Number (simpleToComplex (Integer int)) Inexact
+integerToLisp int = Number (simpleToComplex (Integer int)) Exact
 
 spec :: Spec
 spec =
@@ -240,17 +240,17 @@ spec =
             it "parses dotted pairs" $ do
                 testParse "(#\\a . 1)"
                           (DottedList [Character 'a']
-                                      (Number (Complex (Integer 1) (Integer 0)) Inexact))
+                                      (Number (Complex (Integer 1) (Integer 0)) Exact))
                 testParse "(\"first\" #\\b . 1)"
                         (DottedList [String "first", Character 'b']
-                                    (Number (Complex (Integer 1) (Integer 0)) Inexact))
+                                    (Number (Complex (Integer 1) (Integer 0)) Exact))
         context "when parsing quoted expressions" $ do
             it "parses quoted numbers" $ do
                 testParse "'1" (List [Atom "quote", integerToLisp 1])
             it "parses quoted lists" $ do
                 testParse "'(#\\a 1)"
                     (List [ Atom "quote"
-                          , List [Character 'a', Number (Complex (Integer 1) (Integer 0)) Inexact]])
+                          , List [Character 'a', Number (Complex (Integer 1) (Integer 0)) Exact]])
             it "parses quasiquoted lists" $ do
                 assertExpandParse "`(list ,(+ 1 2) 4)"
                     "(backquote (list (unquote (+ 1 2)) 4))"

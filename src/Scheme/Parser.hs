@@ -64,7 +64,7 @@ parseNumber = do
 -- optional, and can be ordered as either base and exactness, or exactness and base.
 parseNumberPrefix :: Parser NumberPrefix
 parseNumberPrefix = parsePrefix <|> noPrefix
-    where noPrefix = return (Decimal, Inexact)
+    where noPrefix = return (Decimal, Exact)
           parseFirst = char '#' >> oneOf "bodhie"
           parseSecond :: Char -> Parser (Maybe Char)
           parseSecond first = optionMaybe (char '#' >> oneOf (if first `elem` "bodh" then "ie" else "bodh"))
@@ -77,7 +77,7 @@ parseNumberPrefix = parsePrefix <|> noPrefix
           -- | 'orderModifiers' creates a pair of the base and exactness, in that order.
           orderModifiers first second =
             if first `elem` "bodh"
-                then (first, fromMaybe 'i' second)
+                then (first, fromMaybe 'e' second)
                 else (fromMaybe 'd' second, first)
 
 parseComplex :: Base -> Parser Complex
