@@ -114,13 +114,13 @@ binaryBooleanOp :: (LispVal -> LispVal -> ThrowsError Bool) -> LispOp
 binaryBooleanOp op = binaryOp (\arg1 arg2 -> Bool <$> op arg1 arg2)
 
 numBooleanBinop :: (LispVal -> LispVal -> Bool) -> LispOp
-numBooleanBinop cmp = \args -> checkTypeOp allNumber (binaryBooleanOp (\arg1 arg2 -> return (cmp arg1 arg2))) args
+numBooleanBinop op = checkTypeOp allNumber (binaryBooleanOp (\arg1 arg2 -> return (op arg1 arg2)))
 
 boolBooleanBinOp :: (LispVal -> LispVal -> Bool) -> LispOp
-boolBooleanBinOp cmp = \args -> checkTypeOp allBool (binaryBooleanOp (\arg1 arg2 -> return (cmp arg1 arg2))) args
+boolBooleanBinOp op = checkTypeOp allBool (binaryBooleanOp (\arg1 arg2 -> return (op arg1 arg2)))
 
 stringBooleanBinOp :: (LispVal -> LispVal -> Bool) -> LispOp
-stringBooleanBinOp cmp = \args -> checkTypeOp allString (binaryBooleanOp (\arg1 arg2 -> return (cmp arg1 arg2))) args
+stringBooleanBinOp op = checkTypeOp allString (binaryBooleanOp (\arg1 arg2 -> return (op arg1 arg2)))
 
 type TypeChecker = [LispVal] -> Maybe LispError
 
