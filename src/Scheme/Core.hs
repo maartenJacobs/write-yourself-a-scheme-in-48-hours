@@ -64,6 +64,11 @@ instance Show LispVal where
     show (List contents) = "(" ++ unwordsList contents ++ ")"
     show (DottedList head tail) = "(" ++ unwordsList head ++ " . " ++ show tail ++ ")"
 
+instance Ord LispVal where
+    -- compare :: LispVal -> LispVal -> Ordering
+    compare (Number (Complex real1 (Integer 0)) _) (Number (Complex real2 (Integer 0)) _) = real1 `compare` real2
+    compare (String s1) (String s2) = s1 `compare` s2
+
 unwordsList :: [LispVal] -> String
 unwordsList = unwords . map show
 

@@ -5,6 +5,9 @@ import Data.Maybe (maybe)
 import qualified Data.Ratio as Ratio
 import Control.Lens.Extras (is)
 import qualified Control.Monad.Error as MErr -- Deprecated; TODO: use Control.Monad.Except instead
+import Data.List (find)
+
+type LispOp = [LispVal] -> ThrowsError LispVal
 
 eval :: LispVal -> ThrowsError LispVal
 eval val@(String _) = return val
@@ -15,23 +18,36 @@ eval (List [Atom "quote", val]) = return val
 eval (List (Atom func : args)) = mapM eval args >>= apply func
 eval badForm = MErr.throwError $ BadSpecialForm "Unrecognized special form" badForm
 
-apply :: String -> [LispVal] -> ThrowsError LispVal
+apply :: String -> LispOp
 apply func args = maybe (MErr.throwError $ NotFunction "Unrecognized primitive function args" func)
                         ($ args)
                         (lookup func primitives)
 
-primitives :: [(String, [LispVal] -> ThrowsError LispVal)]
+primitives :: [(String, LispOp)]
 primitives = [
-        ("+", return . foldl1 (genericNumOp (+)))
-      , ("-", return . foldl1 (genericNumOp (-)))
-      , ("boolean?", booleanOp $ all (is _Bool))
-      , ("pair?", booleanOp $ all (is _DottedList))
-      , ("list?", booleanOp $ all (is _List))
-      , ("symbol?", booleanOp $ all (is _Atom))
-      , ("char?",  booleanOp $ all (is _Character))
-      , ("exact?", booleanOp isExact)
-      , ("symbol->string", singleArgOp symbolToString)
-      , ("string->symbol", singleArgOp stringToSymbol)
+        ("+", checkTypeOp allNumber $ return . foldl1 (genericNumOp (+)))
+      , ("-", checkTypeOp allNumber $ return . foldl1 (genericNumOp (-)))
+      , ("boolean?", unaryBooleanOp $ return . is _Bool)
+      , ("pair?", unaryBooleanOp $ return . is _DottedList)
+      , ("list?", unaryBooleanOp $ return . is _List)
+      , ("symbol?", unaryBooleanOp $ return . is _Atom)
+      , ("char?", unaryBooleanOp $ return . is _Character)
+      , ("exact?", checkTypeOp allNumber (unaryBooleanOp $ return . isExact))
+      , ("symbol->string", checkTypeOp allSymbol $ unaryOp symbolToString)
+      , ("string->symbol", checkTypeOp allString $ unaryOp stringToSymbol)
+      , ("=", numBooleanBinop (==))
+      , ("<", numBooleanBinop (<))
+      , (">", numBooleanBinop (>))
+      , ("/=", numBooleanBinop (/=))
+      , (">=", numBooleanBinop (>=))
+      , ("<=", numBooleanBinop (<=))
+      , ("||", boolBooleanBinOp (\(Bool a) (Bool b) -> a || b))
+      , ("&&", boolBooleanBinOp (\(Bool a) (Bool b) -> a && b))
+      , ("string=?", stringBooleanBinOp (==))
+      , ("string<?", stringBooleanBinOp (<))
+      , ("string>?", stringBooleanBinOp (>))
+      , ("string<=?", stringBooleanBinOp (<=))
+      , ("string>=?", stringBooleanBinOp (>=))
     ]
 
 genericNumOp :: (SimpleNumber -> SimpleNumber -> SimpleNumber) -> LispVal -> LispVal -> LispVal
@@ -73,12 +89,9 @@ instance Num SimpleNumber where
     negate (Float f) = Float (negate f)
     negate (Rational r) = Rational (negate r)
 
-booleanOp :: ([LispVal] -> Bool) -> [LispVal] -> ThrowsError LispVal
-booleanOp op args = return . Bool $ op args
-
-isExact :: [LispVal] -> Bool
-isExact [(Number _ Exact)] = True
-isExact _                  = False
+isExact :: LispVal -> Bool
+isExact (Number _ Exact) = True
+isExact _                = False
 
 symbolToString :: LispVal -> ThrowsError LispVal
 symbolToString (Atom s) = return $ String s
@@ -86,6 +99,42 @@ symbolToString (Atom s) = return $ String s
 stringToSymbol :: LispVal -> ThrowsError LispVal
 stringToSymbol (String s) = return $ Atom s
 
-singleArgOp :: (LispVal -> ThrowsError LispVal) -> [LispVal] -> ThrowsError LispVal
-singleArgOp op [v] = op v
-singleArgOp _  vs  = MErr.throwError $ NumArgs 1 vs
+unaryOp :: (LispVal -> ThrowsError LispVal) -> LispOp
+unaryOp op [v] = op v
+unaryOp _  vs  = MErr.throwError $ NumArgs 1 vs
+
+binaryOp :: (LispVal -> LispVal -> ThrowsError LispVal) -> LispOp
+binaryOp op [v1, v2] = op v1 v2
+binaryOp _  vs       = MErr.throwError $ NumArgs 2 vs
+
+unaryBooleanOp :: (LispVal -> ThrowsError Bool) -> LispOp
+unaryBooleanOp op = unaryOp (fmap Bool . op)
+
+binaryBooleanOp :: (LispVal -> LispVal -> ThrowsError Bool) -> LispOp
+binaryBooleanOp op = binaryOp (\arg1 arg2 -> Bool <$> op arg1 arg2)
+
+numBooleanBinop :: (LispVal -> LispVal -> Bool) -> LispOp
+numBooleanBinop cmp = \args -> checkTypeOp allNumber (binaryBooleanOp (\arg1 arg2 -> return (cmp arg1 arg2))) args
+
+boolBooleanBinOp :: (LispVal -> LispVal -> Bool) -> LispOp
+boolBooleanBinOp cmp = \args -> checkTypeOp allBool (binaryBooleanOp (\arg1 arg2 -> return (cmp arg1 arg2))) args
+
+stringBooleanBinOp :: (LispVal -> LispVal -> Bool) -> LispOp
+stringBooleanBinOp cmp = \args -> checkTypeOp allString (binaryBooleanOp (\arg1 arg2 -> return (cmp arg1 arg2))) args
+
+type TypeChecker = [LispVal] -> Maybe LispError
+
+allBool :: TypeChecker
+allBool args = maybe Nothing (Just . TypeMismatch "bool") (find (not . is _Bool) args)
+
+allNumber :: TypeChecker
+allNumber args = maybe Nothing (Just . TypeMismatch "number") (find (not . is _Number) args)
+
+allString :: TypeChecker
+allString args = maybe Nothing (Just . TypeMismatch "string") (find (not . is _String) args)
+
+allSymbol :: TypeChecker
+allSymbol args = maybe Nothing (Just . TypeMismatch "symbol") (find (not . is _Atom) args)
+
+checkTypeOp :: TypeChecker -> LispOp -> LispOp
+checkTypeOp chkType op args = maybe (op args) MErr.throwError (chkType args)

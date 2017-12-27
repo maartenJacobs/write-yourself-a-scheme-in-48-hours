@@ -47,3 +47,62 @@ spec =
         it "identifies characters" $ do
             eval (List [Atom "char?", Character 'a']) `shouldBe` Right (Bool True)
             eval (List [Atom "char?", String "foo"]) `shouldBe` Right (Bool False)
+        it "compares numbers" $ do
+            let less = Number (Complex (Integer 42) (Integer 0)) Exact
+            let equal = Number (Complex (Integer 1234) (Integer 0)) Exact
+            let more = Number (Complex (Integer 54321) (Integer 0)) Exact
+            -- Relation of equal to itself.
+            eval (List [Atom "=", equal, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom "/=", equal, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "<", equal, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "<=", equal, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom ">", equal, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom ">=", equal, equal]) `shouldBe` Right (Bool True)
+            -- Relation of less to equal.
+            eval (List [Atom "=", less, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "/=", less, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom "<", less, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom "<=", less, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom ">", less, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom ">=", less, equal]) `shouldBe` Right (Bool False)
+            -- Relation of more to equal.
+            eval (List [Atom "=", more, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "/=", more, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom "<", more, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "<=", more, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom ">", more, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom ">=", more, equal]) `shouldBe` Right (Bool True)
+        it "combines bools" $ do
+            let true = Bool True
+            let false = Bool False
+            -- Relation of true to itself.
+            eval (List [Atom "||", true, true]) `shouldBe` Right (Bool True)
+            eval (List [Atom "&&", true, true]) `shouldBe` Right (Bool True)
+            -- Relation of false to itself.
+            eval (List [Atom "||", false, false]) `shouldBe` Right (Bool False)
+            eval (List [Atom "&&", false, false]) `shouldBe` Right (Bool False)
+            -- Relation of false to true.
+            eval (List [Atom "||", false, true]) `shouldBe` Right (Bool True)
+            eval (List [Atom "&&", false, true]) `shouldBe` Right (Bool False)
+        it "compares strings" $ do
+            let less = String "foo"
+            let equal = String "kyz"
+            let more = String "zzz"
+            -- Relation of equal to itself.
+            eval (List [Atom "string=?", equal, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom "string<?", equal, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "string<=?", equal, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom "string>?", equal, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "string>=?", equal, equal]) `shouldBe` Right (Bool True)
+            -- Relation of less to equal.
+            eval (List [Atom "string=?", less, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "string<?", less, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom "string<=?", less, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom "string>?", less, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "string>=?", less, equal]) `shouldBe` Right (Bool False)
+            -- Relation of more to equal.
+            eval (List [Atom "string=?", more, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "string<?", more, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "string<=?", more, equal]) `shouldBe` Right (Bool False)
+            eval (List [Atom "string>?", more, equal]) `shouldBe` Right (Bool True)
+            eval (List [Atom "string>=?", more, equal]) `shouldBe` Right (Bool True)
