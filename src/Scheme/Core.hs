@@ -103,6 +103,10 @@ instance MErr.Error LispError where
 
 type ThrowsError = Either LispError
 
+-- | 'trapError' transforms a possible Lisp error into 'Right String'.
+-- As a result, the return value will always be 'Right String', as 'Right' values
+-- are passed through without modification.
+trapError :: ThrowsError String -> ThrowsError String
 trapError action = MErr.catchError action (return . show)
 
 extractValue :: ThrowsError a -> a
