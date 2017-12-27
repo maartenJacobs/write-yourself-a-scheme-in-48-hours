@@ -106,3 +106,10 @@ spec =
             eval (List [Atom "string<=?", more, equal]) `shouldBe` Right (Bool False)
             eval (List [Atom "string>?", more, equal]) `shouldBe` Right (Bool True)
             eval (List [Atom "string>=?", more, equal]) `shouldBe` Right (Bool True)
+        it "supports logical branching" $ do
+            let trueCond = List [Atom "string=?", String "foo", String "foo"]
+            let falseCond = List [Atom "string=?", String "foo", String "bar"]
+            let trueBranch = String "true"
+            let falseBranch = String "false"
+            eval (List [Atom "if", trueCond, trueBranch, falseBranch]) `shouldBe` Right trueBranch
+            eval (List [Atom "if", falseCond, trueBranch, falseBranch]) `shouldBe` Right falseBranch
