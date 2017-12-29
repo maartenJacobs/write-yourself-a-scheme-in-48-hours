@@ -18,8 +18,9 @@ eval (List [Atom "quote", val]) = return val
 eval (List [Atom "if", pred, conseq, alt]) =
     do result <- eval pred
        case result of
+            Bool True  -> eval conseq
             Bool False -> eval alt
-            otherwise  -> eval conseq
+            v          -> MErr.throwError $ TypeMismatch "bool" v
 eval (List (Atom func : args)) = mapM eval args >>= apply func
 eval badForm = MErr.throwError $ BadSpecialForm "Unrecognized special form" badForm
 
