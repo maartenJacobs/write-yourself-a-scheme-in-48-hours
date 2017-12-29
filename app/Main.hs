@@ -2,7 +2,6 @@ import System.Environment
 import Scheme.Core
 import Scheme.Parser
 import Scheme.Evaluator
-import Scheme.Runtime
 import Control.Monad (liftM)
 import System.IO
 
@@ -26,10 +25,10 @@ until_ pred prompt action = do
       else action result >> until_ pred prompt action
 
 runOne :: String -> IO ()
-runOne expr = nullEnv >>= flip evalAndPrint expr
+runOne expr = primitiveBindings >>= flip evalAndPrint expr
 
 runRepl :: IO ()
-runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
+runRepl = primitiveBindings >>= until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
 
 main :: IO ()
 main = do args <- getArgs

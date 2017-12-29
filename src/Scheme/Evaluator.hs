@@ -1,7 +1,6 @@
 module Scheme.Evaluator where
 
 import Scheme.Core
-import Scheme.Runtime
 import Data.Maybe (maybe)
 import qualified Data.Ratio as Ratio
 import Control.Lens.Extras (is)
@@ -9,6 +8,19 @@ import qualified Control.Monad.Error as MErr -- Deprecated; TODO: use Control.Mo
 import Data.List (find)
 
 type LispOp = [LispVal] -> ThrowsError LispVal
+
+primitiveBindings :: IO Env
+primitiveBindings = nullEnv >>= (flip bindVars $ map makePrimitiveFunc primitives)
+    where makePrimitiveFunc (var, func) = (var, PrimitiveFunc func)
+
+makeFunc :: Maybe String -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeFunc varargs env params body = return $ Func (map show params) varargs body env
+
+makeNormalFunc :: Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeNormalFunc = makeFunc Nothing
+
+makeVarArgs :: LispVal -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeVarArgs = makeFunc . Just . show
 
 eval :: Env -> LispVal -> IOThrowsError LispVal
 eval _ val@(String _) = return val
@@ -27,13 +39,34 @@ eval env (List [Atom "set!", Atom var, form]) =
         eval env form >>= setVar env var
 eval env (List [Atom "define", Atom var, form]) =
     eval env form >>= defineVar env var
-eval env (List (Atom func : args)) = mapM (eval env) args >>= liftThrows .  apply func
+eval env (List (Atom "define" : List (Atom var : params) : body)) =
+    makeNormalFunc env params body >>= defineVar env var
+eval env (List (Atom "define" : DottedList (Atom var : params) varargs : body)) =
+    makeVarArgs varargs env params body >>= defineVar env var
+eval env (List (Atom "lambda" : List params : body)) =
+    makeNormalFunc env params body
+eval env (List (Atom "lambda" : DottedList params varargs : body)) =
+    makeVarArgs varargs env params body
+eval env (List (Atom "lambda" : varargs@(Atom _) : body)) =
+    makeVarArgs varargs env [] body
+eval env (List (function : args)) = do
+    func <- eval env function
+    argVals <- mapM (eval env) args
+    apply func argVals
 eval _ badForm = MErr.throwError $ BadSpecialForm "Unrecognized special form" badForm
 
-apply :: String -> LispOp
-apply func args = maybe (MErr.throwError $ NotFunction "Unrecognized primitive function args" func)
-                        ($ args)
-                        (lookup func primitives)
+apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
+apply (PrimitiveFunc func) args = liftThrows $ func args
+apply (Func params varargs body closure) args =
+    if num params /= num args && varargs == Nothing
+       then MErr.throwError $ NumArgs (num params) args
+       else (MErr.liftIO $ bindVars closure $ zip params args) >>= bindVarArgs varargs >>= evalBody
+    where remainingArgs = drop (length params) args
+          num = toInteger . length
+          evalBody env = MErr.liftM last $ mapM (eval env) body
+          bindVarArgs arg env = maybe (return env)
+                                      (\argName -> MErr.liftIO $ bindVars env [(argName, List $ remainingArgs)])
+                                      arg
 
 primitives :: [(String, LispOp)]
 primitives = [

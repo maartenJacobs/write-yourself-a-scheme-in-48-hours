@@ -16,6 +16,10 @@ import Data.Ratio ((%)) -- Qualified operators would be a pain.
 import qualified Control.Lens as Lens
 import Text.ParserCombinators.Parsec (ParseError)
 import qualified Control.Monad.Error as MErr -- Deprecated; TODO: use Control.Monad.Except instead
+import Data.IORef
+import Data.Maybe (maybe)
+
+type Env = IORef [(String, IORef LispVal)]
 
 -- | 'SimpleNumber' describes scalar numbers in increasing order of a number type tower.
 data SimpleNumber = Integer Integer
@@ -37,9 +41,12 @@ data LispVal = Atom String
              | String String
              | Bool Bool
              | Character Char
-             deriving (Eq)
-
-Lens.makePrisms ''LispVal
+             | PrimitiveFunc ([LispVal] -> ThrowsError LispVal)
+             | Func { params :: [String]
+                    , vararg :: (Maybe String)
+                    , body :: [LispVal]
+                    , closure :: Env
+                    }
 
 data LispError = NumArgs Integer [LispVal]
                | TypeMismatch String LispVal
@@ -48,7 +55,7 @@ data LispError = NumArgs Integer [LispVal]
                | NotFunction String String
                | UnboundVar String String
                | Default String
-               deriving (Eq)
+               -- deriving (Eq)
 
 -- | 'LispVal' is an instance of 'Show' to standardise printing of Scheme values.
 -- The format is the same as the Scheme input, but with a single space between
@@ -63,6 +70,19 @@ instance Show LispVal where
     show (Number c@(Complex _ _) ex) = show ex ++ show c
     show (List contents) = "(" ++ unwordsList contents ++ ")"
     show (DottedList head tail) = "(" ++ unwordsList head ++ " . " ++ show tail ++ ")"
+    show (PrimitiveFunc _) = "<primitive>"
+    show (Func {params = args, vararg = varargs, body = body, closure = env}) =
+        "(lambda (" ++ unwords (map show args) ++ (maybe "" (" . " ++) varargs) ++ ") ...)"
+
+instance Eq LispVal where
+    -- (==) :: LispVal -> LispVal -> Bool
+    (==) (Atom s1) (Atom s2)     = s1 == s2
+    (==) (List l1) (List l2)     = l1 == l2
+    (==) (String s1) (String s2) = s1 == s2
+    (==) (Bool b1) (Bool b2)     = b1 == b2
+    (==) (Character c1) (Character c2)         = c1 == c2
+    (==) (DottedList l1 e1) (DottedList l2 e2) = l1 == l2 && e1 == e2
+    (==) _ _ = False
 
 instance Ord LispVal where
     -- compare :: LispVal -> LispVal -> Ordering
@@ -135,3 +155,41 @@ unifyNumberType (Rational _) r@(Rational _) = r
 unifyNumberType (Float _) f@(Float _) = f
 unifyNumberType (Float _) (Integer i) = Float (fromIntegral i :: Float)
 unifyNumberType (Float _) (Rational r) = Float (fromRational r :: Float)
+
+nullEnv :: IO Env
+nullEnv = newIORef []
+
+isBound :: Env -> String -> IO Bool
+isBound envRef var = readIORef envRef >>= return . maybe False (const True) . lookup var
+
+getVar :: Env -> String -> IOThrowsError LispVal
+getVar envRef var  =  do env <- MErr.liftIO $ readIORef envRef
+                         maybe (MErr.throwError $ UnboundVar "Getting an unbound variable" var)
+                               (MErr.liftIO . readIORef)
+                               (lookup var env)
+
+setVar :: Env -> String -> LispVal -> IOThrowsError LispVal
+setVar envRef var value = do env <- MErr.liftIO $ readIORef envRef
+                             maybe (MErr.throwError $ UnboundVar "Setting an unbound variable" var)
+                                   (MErr.liftIO . (flip writeIORef value))
+                                   (lookup var env)
+                             return value
+
+defineVar :: Env -> String -> LispVal -> IOThrowsError LispVal
+defineVar envRef var value = do
+     alreadyDefined <- MErr.liftIO $ isBound envRef var
+     if alreadyDefined
+        then setVar envRef var value >> return value
+        else MErr.liftIO $ do
+             valueRef <- newIORef value
+             env <- readIORef envRef
+             writeIORef envRef ((var, valueRef) : env)
+             return value
+
+bindVars :: Env -> [(String, LispVal)] -> IO Env
+bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
+     where extendEnv bindings env = MErr.liftM (++ env) (mapM addBinding bindings)
+           addBinding (var, value) = do ref <- newIORef value
+                                        return (var, ref)
+
+Lens.makePrisms ''LispVal
