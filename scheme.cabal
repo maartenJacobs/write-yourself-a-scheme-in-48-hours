@@ -11,6 +11,7 @@ library scheme-lang
   exposed-modules:  Scheme.Core
                   , Scheme.Parser
                   , Scheme.Evaluator
+                  , Scheme.Runtime
   build-depends:    base >=4.10 && <4.11
                   , parsec == 3.1.11
                   , lens == 4.15.4

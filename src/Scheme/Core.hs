@@ -107,6 +107,7 @@ instance MErr.Error LispError where
     strMsg = Default
 
 type ThrowsError = Either LispError
+type IOThrowsError = MErr.ErrorT LispError IO
 
 -- | 'trapError' transforms a possible Lisp error into 'Right String'.
 -- As a result, the return value will always be 'Right String', as 'Right' values
@@ -116,6 +117,13 @@ trapError action = MErr.catchError action (return . show)
 
 extractValue :: ThrowsError a -> a
 extractValue (Right val) = val
+
+runIOThrows :: IOThrowsError String -> IO String
+runIOThrows action = MErr.runErrorT action >>= return . extractValue . trapError
+
+liftThrows :: ThrowsError a -> IOThrowsError a
+liftThrows (Left err) = MErr.throwError err
+liftThrows (Right val) = return val
 
 unifyNumberTypes :: [SimpleNumber] -> [SimpleNumber]
 unifyNumberTypes ns = map (unifyNumberType (maximum ns)) ns
