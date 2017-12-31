@@ -18,6 +18,7 @@ import Text.ParserCombinators.Parsec (ParseError)
 import qualified Control.Monad.Error as MErr -- Deprecated; TODO: use Control.Monad.Except instead
 import Data.IORef
 import Data.Maybe (maybe)
+import System.IO (Handle)
 
 type Env = IORef [(String, IORef LispVal)]
 
@@ -47,6 +48,8 @@ data LispVal = Atom String
                     , body :: [LispVal]
                     , closure :: Env
                     }
+             | IOFunc ([LispVal] -> IOThrowsError LispVal)
+             | Port Handle
 
 data LispError = NumArgs Integer [LispVal]
                | TypeMismatch String LispVal
@@ -73,6 +76,8 @@ instance Show LispVal where
     show (PrimitiveFunc _) = "<primitive>"
     show (Func {params = args, vararg = varargs, body = body, closure = env}) =
         "(lambda (" ++ unwords (map show args) ++ (maybe "" (" . " ++) varargs) ++ ") ...)"
+    show (Port _)   = "<IO port>"
+    show (IOFunc _) = "<IO primitive>"
 
 instance Eq LispVal where
     -- (==) :: LispVal -> LispVal -> Bool

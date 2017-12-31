@@ -1,17 +1,21 @@
 module Scheme.Evaluator where
 
 import Scheme.Core
+import Scheme.Parser (readExpr, readExprList)
 import Data.Maybe (maybe)
 import qualified Data.Ratio as Ratio
 import Control.Lens.Extras (is)
 import qualified Control.Monad.Error as MErr -- Deprecated; TODO: use Control.Monad.Except instead
 import Data.List (find)
+import System.IO (IOMode(..), hGetLine, hClose, hPrint, stdin, stdout, openFile)
 
 type LispOp = [LispVal] -> ThrowsError LispVal
+type LispIOOp = [LispVal] -> IOThrowsError LispVal
 
 primitiveBindings :: IO Env
-primitiveBindings = nullEnv >>= (flip bindVars $ map makePrimitiveFunc primitives)
-    where makePrimitiveFunc (var, func) = (var, PrimitiveFunc func)
+primitiveBindings = nullEnv >>= (flip bindVars $ map (makeFunc IOFunc) ioPrimitives
+                                               ++ map (makeFunc PrimitiveFunc) primitives)
+     where makeFunc constructor (var, func) = (var, constructor func)
 
 makeFunc :: Maybe String -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
 makeFunc varargs env params body = return $ Func (map show params) varargs body env
@@ -49,6 +53,8 @@ eval env (List (Atom "lambda" : DottedList params varargs : body)) =
     makeVarArgs varargs env params body
 eval env (List (Atom "lambda" : varargs@(Atom _) : body)) =
     makeVarArgs varargs env [] body
+eval env (List [Atom "load", String filename]) =
+    load filename >>= MErr.liftM last . mapM (eval env)
 eval env (List (function : args)) = do
     func <- eval env function
     argVals <- mapM (eval env) args
@@ -67,6 +73,35 @@ apply (Func params varargs body closure) args =
           bindVarArgs arg env = maybe (return env)
                                       (\argName -> MErr.liftIO $ bindVars env [(argName, List $ remainingArgs)])
                                       arg
+apply (IOFunc func) args = func args
+
+applyProc :: [LispVal] -> IOThrowsError LispVal
+applyProc [func, List args] = apply func args
+applyProc (func : args)     = apply func args
+
+makePort :: IOMode -> [LispVal] -> IOThrowsError LispVal
+makePort mode [String filename] = MErr.liftM Port $ MErr.liftIO $ openFile filename mode
+
+closePort :: [LispVal] -> IOThrowsError LispVal
+closePort [Port port] = MErr.liftIO $ hClose port >> (return $ Bool True)
+closePort _           = return $ Bool False
+
+readProc :: [LispVal] -> IOThrowsError LispVal
+readProc []          = readProc [Port stdin]
+readProc [Port port] = (MErr.liftIO $ hGetLine port) >>= liftThrows . readExpr
+
+writeProc :: [LispVal] -> IOThrowsError LispVal
+writeProc [obj]            = writeProc [obj, Port stdout]
+writeProc [obj, Port port] = MErr.liftIO $ hPrint port obj >> (return $ Bool True)
+
+readContents :: [LispVal] -> IOThrowsError LispVal
+readContents [String filename] = MErr.liftM String $ MErr.liftIO $ readFile filename
+
+load :: String -> IOThrowsError [LispVal]
+load filename = (MErr.liftIO $ readFile filename) >>= liftThrows . readExprList
+
+readAll :: [LispVal] -> IOThrowsError LispVal
+readAll [String filename] = MErr.liftM List $ load filename
 
 primitives :: [(String, LispOp)]
 primitives = [
@@ -98,6 +133,19 @@ primitives = [
       , ("cons", cons)
       , ("eq?", eqv)
       , ("eqv?", eqv)
+    ]
+
+ioPrimitives :: [(String, [LispVal] -> IOThrowsError LispVal)]
+ioPrimitives = [
+        ("apply", applyProc)
+      , ("open-input-file", makePort ReadMode)
+      , ("open-output-file", makePort WriteMode)
+      , ("close-input-port", closePort)
+      , ("close-output-port", closePort)
+      , ("read", readProc)
+      , ("write", writeProc)
+      , ("read-contents", readContents)
+      , ("read-all", readAll)
     ]
 
 genericNumOp :: (SimpleNumber -> SimpleNumber -> SimpleNumber) -> LispVal -> LispVal -> LispVal
